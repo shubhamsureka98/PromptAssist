@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PromptAssist — Settings</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        max-width: 680px; margin: 32px auto; padding: 0 24px;
+        font: 14px/1.55 -apple-system, system-ui, "Segoe UI", sans-serif;
+        background: Canvas; color: CanvasText;
+      }
+      h1 { font-size: 20px; margin-bottom: 6px; }
+      h2 { font-size: 14px; margin-top: 24px; font-weight: 600; }
+      .lede { color: GrayText; margin-top: 0; }
+      .card {
+        border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+        border-radius: 12px; padding: 14px 16px; margin: 12px 0;
+        background: color-mix(in srgb, Canvas 97%, CanvasText 3%);
+      }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+      .row label { flex: 1; }
+      input[type="text"], input[type="password"], select, textarea {
+        font: inherit; padding: 6px 8px; border-radius: 6px;
+        border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+        background: Canvas; color: CanvasText; min-width: 240px;
+      }
+      textarea { width: 100%; min-height: 60px; resize: vertical; }
+      .help { font-size: 12px; color: GrayText; margin-top: 4px; }
+      .help a { color: #4f46e5; text-decoration: none; }
+      .help a:hover { text-decoration: underline; }
+      button {
+        font: inherit; padding: 8px 14px; border-radius: 8px;
+        border: 1px solid #4f46e5; background: #4f46e5; color: white;
+        cursor: pointer; font-weight: 600;
+      }
+      button.ghost { background: transparent; color: CanvasText; border-color: color-mix(in srgb, CanvasText 25%, transparent); }
+      .saved {
+        position: fixed; bottom: 18px; right: 18px;
+        background: #16a34a; color: white; padding: 8px 12px; border-radius: 8px;
+        opacity: 0; transition: opacity 200ms ease; pointer-events: none;
+      }
+      .saved.show { opacity: 1; }
+      kbd { background: color-mix(in srgb, CanvasText 10%, transparent); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <h1>PromptAssist</h1>
+    <p class="lede">Optimize your prompts before sending. Manual trigger only — never auto-sends.</p>
+
+    <div class="card">
+      <h2>Mode</h2>
+      <div class="row">
+        <label for="mode">Mode</label>
+        <select id="mode">
+          <option value="api">API rewrite</option>
+          <option value="chat">In this chat</option>
+        </select>
+      </div>
+      <p class="help"><b>API</b> (default): an LLM rewrites your draft via your key. Clean, no chat clutter. <b>In this chat</b>: asks the chat you're in to rewrite, then offers Replace, Insert, or Open in a new chat.</p>
+    </div>
+
+    <div class="card" id="api-section">
+      <h2>API provider</h2>
+      <div class="row">
+        <label for="apiProvider">Provider</label>
+        <select id="apiProvider">
+          <option value="openrouter">OpenRouter (recommended)</option>
+          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="openai">OpenAI</option>
+          <option value="google">Google (Gemini)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="apiKey">API key</label>
+        <input id="apiKey" type="password" placeholder="Paste key…" autocomplete="off" />
+      </div>
+      <p class="help" id="key-hint"></p>
+      <div class="row">
+        <label for="apiModel">Rewriter model</label>
+        <select id="apiModel"></select>
+      </div>
+      <p class="help">Different models trade speed vs quality. Claude Haiku 4.5 is the default — fast, cheap, good at structured rewrites.</p>
+    </div>
+
+    <div class="card">
+      <h2>Style</h2>
+      <div class="row">
+        <label for="promptStyle">Prompt style</label>
+        <select id="promptStyle">
+          <option value="auto">Auto (smart)</option>
+          <option value="refine">Refine — polish &amp; clarify</option>
+          <option value="structure">Structure — full engineering</option>
+        </select>
+      </div>
+      <p class="help"><b>Auto</b>: chooses based on your draft. Short/simple → refine. Long/complex → structure (adds role, context, task, format). <b>Structure</b> always applies best-practice prompt engineering from Claude, OpenAI &amp; Gemini.</p>
+      <div class="row">
+        <label for="tone">Tone</label>
+        <select id="tone">
+          <option value="neutral">Neutral</option>
+          <option value="expert">Expert</option>
+          <option value="casual">Casual</option>
+          <option value="concise">Concise</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="verbosity">Length</label>
+        <select id="verbosity">
+          <option value="concise">Concise</option>
+          <option value="standard">Standard</option>
+          <option value="detailed">Detailed</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Disable on sites</h2>
+      <div class="row">
+        <label for="blocklist">Hostnames (one per line)</label>
+        <textarea id="blocklist" placeholder="e.g. claude.ai"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Shortcut</h2>
+      <p>Press <kbd>⌘ / Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> in any supported site to optimize. Right-click the floating <b>Optimize</b> button to open these settings. Change the shortcut at <code>chrome://extensions/shortcuts</code>.</p>
+    </div>
+
+    <div style="display:flex; gap:8px; margin: 16px 0 40px;">
+      <button id="save" type="button">Save</button>
+      <button id="reset" type="button" class="ghost">Reset to defaults</button>
+    </div>
+
+    <div id="saved" class="saved">Saved</div>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>
