@@ -1,0 +1,38 @@
+<svg viewBox="0 0 720 500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="500" fill="#0d0d0d" rx="12"/>
+  <rect x="0" y="0" width="720" height="42" fill="#1a1a1a" rx="12"/>
+  <rect x="0" y="28" width="720" height="14" fill="#1a1a1a"/>
+  <circle cx="22" cy="21" r="5" fill="#ff5f57"/>
+  <circle cx="40" cy="21" r="5" fill="#ffbd2e"/>
+  <circle cx="58" cy="21" r="5" fill="#28c840"/>
+  <rect x="200" y="13" width="320" height="18" rx="9" fill="#2a2a2a"/>
+  <text x="360" y="25" text-anchor="middle" fill="#666" font-family="-apple-system,sans-serif" font-size="11">claude.ai/new</text>
+  <rect x="30" y="400" width="570" height="72" rx="12" fill="#1a1a1a" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="50" y="426" fill="#555" font-family="-apple-system,sans-serif" font-size="12">https://myproduct.com  Read this and build a plan…</text>
+  <circle cx="668" cy="436" r="20" fill="#4f46e5"/>
+  <text x="668" y="443" text-anchor="middle" fill="white" font-family="-apple-system,sans-serif" font-size="16">✦</text>
+  <rect x="120" y="48" width="520" height="340" rx="14" fill="#1c1c1e" stroke="#2a2a2a" stroke-width="1"/>
+  <rect x="120" y="48" width="520" height="3" rx="2" fill="#4f46e5"/>
+  <rect x="476" y="56" width="152" height="20" rx="10" fill="#1e1b4b"/>
+  <text x="552" y="70" text-anchor="middle" fill="#a5b4fc" font-family="-apple-system,sans-serif" font-size="10" font-weight="500">✦ PromptAssist</text>
+  <rect x="136" y="80" width="488" height="124" rx="8" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="152" y="100" fill="#c7d2fe" font-family="-apple-system,sans-serif" font-size="12" font-weight="500">**Role:** You are a strategic marketing consultant.</text>
+  <text x="152" y="118" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="12">**Task:** Analyze https://myproduct.com and build a</text>
+  <text x="152" y="136" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="12">concise one-pager marketing plan incorporating my inputs.</text>
+  <text x="152" y="158" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="12">**Output:** Executive summary · Objectives · Phases · Timeline</text>
+  <text x="152" y="190" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11" font-style="italic">(Assumed: B2B SaaS — use 'Add more context' to refine)</text>
+  <text x="150" y="222" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">› Show original</text>
+  <text x="150" y="242" fill="#a5b4fc" font-family="-apple-system,sans-serif" font-size="11">▾ Not quite? Add more context</text>
+  <rect x="136" y="252" width="488" height="48" rx="8" fill="#111" stroke="#4f46e5" stroke-width="1.5"/>
+  <text x="152" y="272" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="12">Focus on B2C, keep it under 300 words, target Gen Z audience</text>
+  <rect x="485" y="262" width="1.5" height="14" fill="#a5b4fc"/>
+  <rect x="136" y="308" width="488" height="30" rx="7" fill="#4f46e5"/>
+  <text x="380" y="327" text-anchor="middle" fill="white" font-family="-apple-system,sans-serif" font-size="13" font-weight="500">Re-optimize →</text>
+  <line x1="120" y1="350" x2="640" y2="350" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="140" y="372" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="12">Regenerate</text>
+  <text x="228" y="372" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="12">Settings</text>
+  <text x="436" y="372" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="12">Cancel</text>
+  <text x="494" y="372" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="12">Insert</text>
+  <rect x="540" y="356" width="88" height="28" rx="7" fill="#4f46e5"/>
+  <text x="584" y="375" text-anchor="middle" fill="white" font-family="-apple-system,sans-serif" font-size="13" font-weight="500">Replace</text>
+</svg>

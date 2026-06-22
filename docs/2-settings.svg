@@ -1,0 +1,46 @@
+<svg viewBox="0 0 720 500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="500" fill="#f3f4f6" rx="12"/>
+  <rect x="0" y="0" width="720" height="42" fill="#e5e7eb" rx="12"/>
+  <rect x="0" y="28" width="720" height="14" fill="#e5e7eb"/>
+  <circle cx="22" cy="21" r="5" fill="#ff5f57"/>
+  <circle cx="40" cy="21" r="5" fill="#ffbd2e"/>
+  <circle cx="58" cy="21" r="5" fill="#28c840"/>
+  <rect x="180" y="12" width="360" height="18" rx="9" fill="#d1d5db"/>
+  <text x="360" y="25" text-anchor="middle" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="10">chrome-extension://promptassist/options/options.html</text>
+  <rect x="100" y="60" width="520" height="420" rx="12" fill="white" stroke="#e5e7eb" stroke-width="1"/>
+  <rect x="100" y="60" width="520" height="56" rx="12" fill="#4f46e5"/>
+  <rect x="100" y="96" width="520" height="20" fill="#4f46e5"/>
+  <text x="136" y="82" fill="white" font-family="-apple-system,sans-serif" font-size="16" font-weight="500">✦  PromptAssist — Settings</text>
+  <text x="136" y="100" fill="#a5b4fc" font-family="-apple-system,sans-serif" font-size="11">Configure your API provider, model, and rewrite preferences</text>
+  <text x="130" y="140" fill="#374151" font-family="-apple-system,sans-serif" font-size="11" font-weight="500">API PROVIDER</text>
+  <text x="130" y="164" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">Provider</text>
+  <rect x="300" y="150" width="290" height="28" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="316" y="168" fill="#111827" font-family="-apple-system,sans-serif" font-size="12">OpenRouter</text>
+  <text x="572" y="168" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">▾</text>
+  <text x="130" y="200" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">API Key</text>
+  <rect x="300" y="186" width="290" height="28" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="316" y="204" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="12">sk-or-••••••••••••••••••••</text>
+  <text x="130" y="222" fill="#818cf8" font-family="-apple-system,sans-serif" font-size="10">Get a key at openrouter.ai/keys</text>
+  <text x="130" y="248" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">Model</text>
+  <rect x="300" y="234" width="290" height="28" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="316" y="252" fill="#111827" font-family="-apple-system,sans-serif" font-size="12">Claude Haiku 4.5 — Fast &amp; cheap (default)</text>
+  <text x="572" y="252" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">▾</text>
+  <line x1="120" y1="272" x2="600" y2="272" stroke="#f3f4f6" stroke-width="1"/>
+  <text x="130" y="292" fill="#374151" font-family="-apple-system,sans-serif" font-size="11" font-weight="500">REWRITE PREFERENCES</text>
+  <text x="130" y="316" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">Style</text>
+  <rect x="300" y="302" width="290" height="28" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="316" y="320" fill="#111827" font-family="-apple-system,sans-serif" font-size="12">Auto (Refine or Structure)</text>
+  <text x="572" y="320" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">▾</text>
+  <text x="130" y="352" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">Tone</text>
+  <rect x="300" y="338" width="290" height="28" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="316" y="356" fill="#111827" font-family="-apple-system,sans-serif" font-size="12">Neutral</text>
+  <text x="572" y="356" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">▾</text>
+  <text x="130" y="388" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">Length</text>
+  <rect x="300" y="374" width="290" height="28" rx="6" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="316" y="392" fill="#111827" font-family="-apple-system,sans-serif" font-size="12">Standard</text>
+  <text x="572" y="392" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">▾</text>
+  <rect x="430" y="430" width="80" height="30" rx="6" fill="white" stroke="#d1d5db" stroke-width="1"/>
+  <text x="470" y="449" text-anchor="middle" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="12">Reset</text>
+  <rect x="522" y="430" width="78" height="30" rx="6" fill="#4f46e5"/>
+  <text x="561" y="449" text-anchor="middle" fill="white" font-family="-apple-system,sans-serif" font-size="12">Save</text>
+</svg>
