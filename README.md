@@ -2,7 +2,36 @@
 
 A Chrome extension that rewrites and optimizes your AI prompts before you send them — using best practices from Anthropic, OpenAI, and Google.
 
-![PromptAssist in action](docs/screenshot.png)
+<p align="center">
+  <img src="docs/1-logo.svg" alt="PromptAssist" width="100%"/>
+</p>
+
+---
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/3-result.svg" alt="Result panel" width="100%"/>
+      <br/><sub><b>Optimized result panel</b></sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/4-context.svg" alt="Add more context" width="100%"/>
+      <br/><sub><b>Inline refinement</b></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img src="docs/5-menu.svg" alt="Quick settings menu" width="100%"/>
+      <br/><sub><b>Quick settings (right-click ✦)</b></sub>
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/2-settings.svg" alt="Settings page" width="100%"/>
+      <br/><sub><b>Full settings page</b></sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -142,4 +171,4 @@ Pull requests are welcome. For major changes, please open an issue first.
 
 ## License
 
-[MIT](LICENSE) © 2025 Shubham
+[MIT](LICENSE) © 2026 Shubham
