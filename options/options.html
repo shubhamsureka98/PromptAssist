@@ -43,6 +43,11 @@
       }
       .saved.show { opacity: 1; }
       kbd { background: color-mix(in srgb, CanvasText 10%, transparent); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+      .platform-row { display: grid; grid-template-columns: 180px 1fr 56px; align-items: center; gap: 10px; padding: 5px 0; }
+      .platform-name { font-size: 13px; color: CanvasText; }
+      .platform-bar-wrap { height: 6px; background: color-mix(in srgb, CanvasText 10%, transparent); border-radius: 3px; overflow: hidden; }
+      .platform-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+      .platform-tokens { font-size: 12px; font-weight: 600; text-align: right; }
     </style>
   </head>
   <body>
@@ -123,32 +128,26 @@
     </div>
 
     <div class="card">
-      <h2>Token usage</h2>
-      <div class="row">
-        <label for="tokenBudgetPreset">My API plan</label>
-        <select id="tokenBudgetPreset">
-          <option value="50000">Free tier (~50K/month)</option>
-          <option value="200000">Pay-as-you-go (~200K)</option>
-          <option value="500000">Pro / Plus $20/mo (~500K)</option>
-          <option value="2000000">Advanced $50+/mo (~2M)</option>
-          <option value="10000000">Team / Unlimited (~10M)</option>
-          <option value="custom">Custom…</option>
-        </select>
+      <h2>Token usage <span id="token-month-label" style="font-weight:400;color:GrayText;font-size:12px"></span></h2>
+      <p class="help" style="margin-top:0">Tracks how many tokens PromptAssist uses from your API key each month, broken down by LLM platform. Resets automatically on the 1st of each month.</p>
+
+      <div id="platform-breakdown" style="margin:10px 0 4px">
+        <!-- filled by JS -->
       </div>
-      <div class="row" id="custom-budget-row" style="display:none">
-        <label for="tokenBudget">Custom limit (tokens)</label>
-        <input id="tokenBudget" type="text" placeholder="e.g. 300000" style="min-width:140px" />
+
+      <div style="height:8px;border-radius:4px;background:color-mix(in srgb,CanvasText 10%,transparent);overflow:hidden;margin-top:6px">
+        <div id="token-bar" style="height:100%;border-radius:4px;background:#4f46e5;transition:width 0.4s ease;width:0%"></div>
       </div>
-      <p class="help">Tracks how many tokens <strong>PromptAssist</strong> uses from your API key each month — not the LLM platform's own counter. The bar shows in the floating button menu as you work.</p>
-      <div id="token-usage-row" style="margin-top:10px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-          <span style="font-size:13px;font-weight:600" id="token-used-label">0 tokens used this month</span>
-          <button id="reset-tokens" type="button" class="ghost" style="padding:4px 10px;font-size:12px;">Reset counter</button>
-        </div>
-        <div style="height:8px;border-radius:4px;background:color-mix(in srgb,CanvasText 10%,transparent);overflow:hidden;">
-          <div id="token-bar" style="height:100%;border-radius:4px;background:#4f46e5;transition:width 0.4s ease;width:0%"></div>
-        </div>
-        <p id="token-bar-label" class="help" style="margin-top:4px;"></p>
+      <p id="token-bar-label" class="help" style="margin-top:4px;"></p>
+
+      <div class="row" style="margin-top:12px">
+        <label for="tokenBudget">Monthly budget (tokens)</label>
+        <input id="tokenBudget" type="text" placeholder="e.g. 500000" style="min-width:140px" />
+      </div>
+      <p class="help">Set a soft limit for the bar above. PromptAssist-optimized prompts use roughly 600–2000 tokens each.</p>
+
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button id="reset-tokens" type="button" class="ghost" style="padding:4px 12px;font-size:12px;">Reset counter</button>
       </div>
     </div>
 

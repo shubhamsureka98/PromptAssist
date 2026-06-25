@@ -767,19 +767,20 @@
       if (changes["promptpolish.settings.v1"]) void hydrate();
     };
     chrome.storage.onChanged.addListener(storageListener);
-    function updateTokenBar(used, budget) {
-      if (!budget) { tokenWrap.style.display = "none"; return; }
+    function updateTokenBar(byPlatform, budget) {
+      const platformUsed = (byPlatform || {})[adapter.id] || 0;
+      const totalUsed = Object.values(byPlatform || {}).reduce((a, b) => a + b, 0);
+      if (!totalUsed && !platformUsed) { tokenWrap.style.display = "none"; return; }
       tokenWrap.style.display = "";
-      const pct = Math.min(100, Math.round((used / budget) * 100));
+      const pct = budget > 0 ? Math.min(100, Math.round((totalUsed / budget) * 100)) : 0;
       const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#4f46e5";
       tokenFill.style.width = pct + "%";
       tokenFill.style.background = color;
       tokenPct.textContent = pct + "%";
       tokenPct.style.color = color;
-      tokenSub.textContent = `${fmtTokens(used)} / ${fmtTokens(budget)} tokens used`;
-      if (pct >= 90) tokenSub.style.color = "#ef4444";
-      else if (pct >= 70) tokenSub.style.color = "#f59e0b";
-      else tokenSub.style.color = "";
+      const siteLabel = adapter.id !== "generic" ? ` (${adapter.id}: ${fmtTokens(platformUsed)})` : "";
+      tokenSub.textContent = `Total: ${fmtTokens(totalUsed)} / ${fmtTokens(budget)}${siteLabel}`;
+      tokenSub.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
     }
     async function hydrate() {
       let s;
@@ -801,7 +802,7 @@
       styleSel.value = s.promptStyle ?? "auto";
       if (s.mode === "api" && isContextValid()) {
         chrome.runtime.sendMessage({ type: "GET_TOKEN_STATS" }).then((r) => {
-          if (r) updateTokenBar(r.tokensUsed, r.tokenBudget);
+          if (r) updateTokenBar(r.byPlatform, r.tokenBudget);
         }).catch(() => {});
       }
     }

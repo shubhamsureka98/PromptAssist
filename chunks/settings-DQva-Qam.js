@@ -37,8 +37,9 @@ const DEFAULT_SETTINGS = {
   tone: "neutral",
   verbosity: "standard",
   promptStyle: "auto",
-  tokenBudget: 100000,
+  tokenBudget: 500000,
   tokensUsed: 0,
+  tokensByPlatform: {},
   tokenResetDate: null,
   blocklist: []
 };

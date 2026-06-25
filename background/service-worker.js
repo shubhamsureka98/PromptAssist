@@ -94,6 +94,7 @@ async function runApiEngine(draft, settings, site, attachments = []) {
   const prompt = buildMetaPrompt(draft, settings, site, attachments);
   try {
     const { content: raw, tokens } = provider === "openrouter" ? await callOpenRouter(prompt, key, model) : provider === "anthropic" ? await callAnthropic(prompt, key, model) : provider === "openai" ? await callOpenAI(prompt, key, model) : await callGoogle(prompt, key, model);
+    void accumulateTokens(tokens, site);
     const parsed = parseMetaResponse(raw);
     if (parsed.optimized && parsed.optimized.trim()) {
       return { kind: "ok", optimized: parsed.optimized.trim(), tokens };
@@ -103,15 +104,23 @@ async function runApiEngine(draft, settings, site, attachments = []) {
     return { kind: "error", message: err instanceof Error ? err.message : String(err) };
   }
 }
-async function accumulateTokens(tokens) {
+function monthKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${now.getMonth()}`;
+}
+async function accumulateTokens(tokens, site) {
   if (!tokens || tokens <= 0) return;
   const s = await getSettings();
-  const now = new Date();
-  const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
-  const resetNeeded = s.tokenResetDate !== monthKey;
+  const mk = monthKey();
+  const resetNeeded = s.tokenResetDate !== mk;
+  const byPlatform = resetNeeded ? {} : (s.tokensByPlatform || {});
+  const platform = site || "generic";
+  byPlatform[platform] = (byPlatform[platform] || 0) + tokens;
+  const total = Object.values(byPlatform).reduce((a, b) => a + b, 0);
   await setSettings({
-    tokensUsed: resetNeeded ? tokens : (s.tokensUsed || 0) + tokens,
-    tokenResetDate: monthKey
+    tokensUsed: total,
+    tokensByPlatform: byPlatform,
+    tokenResetDate: mk
   });
 }
 async function callOpenRouter(prompt, key, model) {
@@ -134,7 +143,6 @@ async function callOpenRouter(prompt, key, model) {
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new Error("OpenRouter: empty response.");
   const tokens = (data?.usage?.total_tokens) || 0;
-  void accumulateTokens(tokens);
   return { content, tokens };
 }
 async function callAnthropic(prompt, key, model) {
@@ -157,7 +165,6 @@ async function callAnthropic(prompt, key, model) {
   const content = data?.content?.[0]?.text;
   if (typeof content !== "string") throw new Error("Anthropic: empty response.");
   const tokens = (data?.usage?.input_tokens || 0) + (data?.usage?.output_tokens || 0);
-  void accumulateTokens(tokens);
   return { content, tokens };
 }
 async function callOpenAI(prompt, key, model) {
@@ -175,7 +182,6 @@ async function callOpenAI(prompt, key, model) {
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new Error("OpenAI: empty response.");
   const tokens = (data?.usage?.total_tokens) || 0;
-  void accumulateTokens(tokens);
   return { content, tokens };
 }
 async function callGoogle(prompt, key, model) {
@@ -193,7 +199,6 @@ async function callGoogle(prompt, key, model) {
   const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (typeof content !== "string") throw new Error("Google: empty response.");
   const tokens = (data?.usageMetadata?.totalTokenCount) || 0;
-  void accumulateTokens(tokens);
   return { content, tokens };
 }
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -215,17 +220,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (t === "GET_TOKEN_STATS") {
     getSettings().then((s) => {
-      const now = new Date();
-      const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
-      sendResponse({
-        tokensUsed: s.tokenResetDate === monthKey ? (s.tokensUsed || 0) : 0,
-        tokenBudget: s.tokenBudget || 100000
-      });
-    }).catch(() => sendResponse({ tokensUsed: 0, tokenBudget: 100000 }));
+      const mk = monthKey();
+      const active = s.tokenResetDate === mk;
+      const byPlatform = active ? (s.tokensByPlatform || {}) : {};
+      const total = Object.values(byPlatform).reduce((a, b) => a + b, 0);
+      sendResponse({ tokensUsed: total, byPlatform, tokenBudget: s.tokenBudget || 500000 });
+    }).catch(() => sendResponse({ tokensUsed: 0, byPlatform: {}, tokenBudget: 500000 }));
     return true;
   }
   if (t === "RESET_TOKENS") {
-    setSettings({ tokensUsed: 0, tokenResetDate: null }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    setSettings({ tokensUsed: 0, tokensByPlatform: {}, tokenResetDate: null }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
     return true;
   }
   return false;

@@ -5,9 +5,21 @@ const KEY_HINTS = {
   openai: 'Get a key at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a>. Starts with <code>sk-…</code>',
   google: 'Get a key at <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>'
 };
-function $(id) {
-  return document.getElementById(id);
+const PLATFORM_LABELS = {
+  claude: "Claude (claude.ai)",
+  chatgpt: "ChatGPT (chatgpt.com)",
+  gemini: "Gemini (gemini.google.com)",
+  perplexity: "Perplexity (perplexity.ai)",
+  generic: "Other sites"
+};
+function $(id) { return document.getElementById(id); }
+
+function fmtTokens(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return String(n);
 }
+
 function repopulateModels(provider, currentModel) {
   const select = $("apiModel");
   select.innerHTML = "";
@@ -20,43 +32,53 @@ function repopulateModels(provider, currentModel) {
   const known = MODELS_BY_PROVIDER[provider].some((m) => m.id === currentModel);
   select.value = known ? currentModel : defaultModelFor(provider);
 }
-function fmtTokens(n) {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
-  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
-  return String(n);
-}
+
 async function loadTokenStats(budget) {
   const s = await getSettings();
   const now = new Date();
-  const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
-  const used = s.tokenResetDate === monthKey ? (s.tokensUsed || 0) : 0;
-  const pct = budget > 0 ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+  const mk = `${now.getFullYear()}-${now.getMonth()}`;
+  const active = s.tokenResetDate === mk;
+  const byPlatform = active ? (s.tokensByPlatform || {}) : {};
+  const total = Object.values(byPlatform).reduce((a, b) => a + b, 0);
+
+  // Month label
+  const monthName = now.toLocaleString("default", { month: "long", year: "numeric" });
+  $("token-month-label").textContent = `— ${monthName}`;
+
+  // Per-platform breakdown table
+  const breakdown = $("platform-breakdown");
+  const platforms = Object.entries(byPlatform).filter(([, v]) => v > 0);
+  if (platforms.length === 0) {
+    breakdown.innerHTML = `<p style="color:GrayText;font-size:13px;margin:0">No usage recorded yet this month. Usage appears here automatically as you optimize prompts on each platform.</p>`;
+  } else {
+    const rows = platforms
+      .sort(([, a], [, b]) => b - a)
+      .map(([id, used]) => {
+        const pct = budget > 0 ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+        const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#4f46e5";
+        const label = PLATFORM_LABELS[id] || id;
+        return `<div class="platform-row">
+          <div class="platform-name">${label}</div>
+          <div class="platform-bar-wrap">
+            <div class="platform-bar-fill" style="width:${pct}%;background:${color}"></div>
+          </div>
+          <div class="platform-tokens" style="color:${color}">${fmtTokens(used)}</div>
+        </div>`;
+      }).join("");
+    breakdown.innerHTML = rows;
+  }
+
+  // Total bar
+  const pct = budget > 0 ? Math.min(100, Math.round((total / budget) * 100)) : 0;
   const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#4f46e5";
   $("token-bar").style.width = pct + "%";
   $("token-bar").style.background = color;
-  $("token-used-label").textContent = `${fmtTokens(used)} / ${fmtTokens(budget)} tokens used this month (${pct}%)`;
-  $("token-used-label").style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
-  $("token-bar-label").textContent = `${fmtTokens(budget - used)} tokens remaining. Resets automatically on the 1st of each month.`;
+  const remaining = Math.max(0, budget - total);
+  $("token-bar-label").textContent = total > 0
+    ? `Total: ${fmtTokens(total)} used · ${fmtTokens(remaining)} remaining of ${fmtTokens(budget)} monthly budget`
+    : `Budget: ${fmtTokens(budget)} tokens/month`;
 }
-const PRESET_VALUES = ["50000", "200000", "500000", "2000000", "10000000"];
-function applyBudgetPreset(budgetNum) {
-  const str = String(budgetNum);
-  const preset = $("tokenBudgetPreset");
-  const customRow = $("custom-budget-row");
-  if (PRESET_VALUES.includes(str)) {
-    preset.value = str;
-    customRow.style.display = "none";
-  } else {
-    preset.value = "custom";
-    customRow.style.display = "";
-    $("tokenBudget").value = str;
-  }
-}
-function getSelectedBudget() {
-  const preset = $("tokenBudgetPreset").value;
-  if (preset === "custom") return parseInt($("tokenBudget").value, 10) || 500000;
-  return parseInt(preset, 10) || 500000;
-}
+
 async function load() {
   const s = await getSettings();
   $("mode").value = s.mode;
@@ -68,15 +90,17 @@ async function load() {
   $("verbosity").value = s.verbosity;
   $("blocklist").value = s.blocklist.join("\n");
   document.getElementById("key-hint").innerHTML = KEY_HINTS[s.apiProvider];
-  applyBudgetPreset(s.tokenBudget || 500000);
-  await loadTokenStats(s.tokenBudget || 500000);
+  const budget = s.tokenBudget || 500000;
+  $("tokenBudget").value = budget;
+  await loadTokenStats(budget);
 }
+
 async function save() {
   const provider = $("apiProvider").value;
   const current = await getSettings();
   const apiKeys = { ...current.apiKeys, [provider]: $("apiKey").value.trim() };
   const model = $("apiModel").value || defaultModelFor(provider);
-  const budget = getSelectedBudget();
+  const budget = parseInt($("tokenBudget").value, 10) || 500000;
   await setSettings({
     mode: $("mode").value,
     apiProvider: provider,
@@ -91,17 +115,20 @@ async function save() {
   await loadTokenStats(budget);
   flashSaved();
 }
+
 function flashSaved() {
   const el = document.getElementById("saved");
   el.classList.add("show");
   setTimeout(() => el.classList.remove("show"), 1200);
 }
+
 async function reset() {
   if (!confirm("Reset all PromptAssist settings to defaults?")) return;
   await setSettings({ ...DEFAULT_SETTINGS });
   await load();
   flashSaved();
 }
+
 async function onProviderChange() {
   const provider = $("apiProvider").value;
   const s = await getSettings();
@@ -109,18 +136,17 @@ async function onProviderChange() {
   repopulateModels(provider, s.apiProvider === provider ? s.apiModel : defaultModelFor(provider));
   document.getElementById("key-hint").innerHTML = KEY_HINTS[provider];
 }
+
 document.addEventListener("DOMContentLoaded", () => {
   void load();
   document.getElementById("save").addEventListener("click", () => void save());
   document.getElementById("reset").addEventListener("click", () => void reset());
   $("apiProvider").addEventListener("change", () => void onProviderChange());
-  $("tokenBudgetPreset").addEventListener("change", () => {
-    $("custom-budget-row").style.display = $("tokenBudgetPreset").value === "custom" ? "" : "none";
-  });
   document.getElementById("reset-tokens").addEventListener("click", async () => {
     if (!confirm("Reset your token counter to zero for this month?")) return;
-    await setSettings({ tokensUsed: 0, tokenResetDate: null });
-    await loadTokenStats(getSelectedBudget());
+    await setSettings({ tokensUsed: 0, tokensByPlatform: {}, tokenResetDate: null });
+    const budget = parseInt($("tokenBudget").value, 10) || 500000;
+    await loadTokenStats(budget);
     flashSaved();
   });
 });
