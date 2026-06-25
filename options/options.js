@@ -38,6 +38,25 @@ async function loadTokenStats(budget) {
   $("token-used-label").style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
   $("token-bar-label").textContent = `${fmtTokens(budget - used)} tokens remaining. Resets automatically on the 1st of each month.`;
 }
+const PRESET_VALUES = ["50000", "200000", "500000", "2000000", "10000000"];
+function applyBudgetPreset(budgetNum) {
+  const str = String(budgetNum);
+  const preset = $("tokenBudgetPreset");
+  const customRow = $("custom-budget-row");
+  if (PRESET_VALUES.includes(str)) {
+    preset.value = str;
+    customRow.style.display = "none";
+  } else {
+    preset.value = "custom";
+    customRow.style.display = "";
+    $("tokenBudget").value = str;
+  }
+}
+function getSelectedBudget() {
+  const preset = $("tokenBudgetPreset").value;
+  if (preset === "custom") return parseInt($("tokenBudget").value, 10) || 500000;
+  return parseInt(preset, 10) || 500000;
+}
 async function load() {
   const s = await getSettings();
   $("mode").value = s.mode;
@@ -49,16 +68,15 @@ async function load() {
   $("verbosity").value = s.verbosity;
   $("blocklist").value = s.blocklist.join("\n");
   document.getElementById("key-hint").innerHTML = KEY_HINTS[s.apiProvider];
-  const budget = s.tokenBudget || 100000;
-  $("tokenBudget").value = budget;
-  await loadTokenStats(budget);
+  applyBudgetPreset(s.tokenBudget || 500000);
+  await loadTokenStats(s.tokenBudget || 500000);
 }
 async function save() {
   const provider = $("apiProvider").value;
   const current = await getSettings();
   const apiKeys = { ...current.apiKeys, [provider]: $("apiKey").value.trim() };
   const model = $("apiModel").value || defaultModelFor(provider);
-  const budget = parseInt($("tokenBudget").value, 10) || 100000;
+  const budget = getSelectedBudget();
   await setSettings({
     mode: $("mode").value,
     apiProvider: provider,
@@ -96,11 +114,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("save").addEventListener("click", () => void save());
   document.getElementById("reset").addEventListener("click", () => void reset());
   $("apiProvider").addEventListener("change", () => void onProviderChange());
+  $("tokenBudgetPreset").addEventListener("change", () => {
+    $("custom-budget-row").style.display = $("tokenBudgetPreset").value === "custom" ? "" : "none";
+  });
   document.getElementById("reset-tokens").addEventListener("click", async () => {
     if (!confirm("Reset your token counter to zero for this month?")) return;
     await setSettings({ tokensUsed: 0, tokenResetDate: null });
-    const budget = parseInt($("tokenBudget").value, 10) || 100000;
-    await loadTokenStats(budget);
+    await loadTokenStats(getSelectedBudget());
     flashSaved();
   });
 });

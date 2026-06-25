@@ -125,10 +125,21 @@
     <div class="card">
       <h2>Token usage</h2>
       <div class="row">
-        <label for="tokenBudget">Monthly token budget</label>
-        <input id="tokenBudget" type="text" placeholder="e.g. 100000" style="min-width:140px" />
+        <label for="tokenBudgetPreset">My API plan</label>
+        <select id="tokenBudgetPreset">
+          <option value="50000">Free tier (~50K/month)</option>
+          <option value="200000">Pay-as-you-go (~200K)</option>
+          <option value="500000">Pro / Plus $20/mo (~500K)</option>
+          <option value="2000000">Advanced $50+/mo (~2M)</option>
+          <option value="10000000">Team / Unlimited (~10M)</option>
+          <option value="custom">Custom…</option>
+        </select>
       </div>
-      <p class="help">Set a soft limit to track how many tokens PromptAssist uses each month. This resets automatically on the 1st of each month. The token count is shown in the floating button menu while you work.</p>
+      <div class="row" id="custom-budget-row" style="display:none">
+        <label for="tokenBudget">Custom limit (tokens)</label>
+        <input id="tokenBudget" type="text" placeholder="e.g. 300000" style="min-width:140px" />
+      </div>
+      <p class="help">Tracks how many tokens <strong>PromptAssist</strong> uses from your API key each month — not the LLM platform's own counter. The bar shows in the floating button menu as you work.</p>
       <div id="token-usage-row" style="margin-top:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
           <span style="font-size:13px;font-weight:600" id="token-used-label">0 tokens used this month</span>

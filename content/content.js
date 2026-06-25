@@ -662,11 +662,11 @@
         display: flex; justify-content: space-between; align-items: center; gap: 8px;
         padding-left: 6px; padding-right: 6px;
       }
-      .token-bar-wrap { padding: 8px 6px 4px; }
-      .token-bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; margin-bottom: 4px; }
-      .token-bar-track { height: 5px; background: rgba(17,24,39,0.08); border-radius: 3px; overflow: hidden; }
-      .token-bar-fill { height: 100%; background: #4f46e5; border-radius: 3px; transition: width 0.4s ease; }
-      .token-bar-sub { font-size: 10.5px; color: #6b7280; margin-top: 4px; }
+      .token-bar-wrap { padding: 6px 6px 2px; border-top: 1px solid rgba(17,24,39,0.06); margin-top: 4px; }
+      .token-bar-labels { display: flex; justify-content: space-between; font-size: 10.5px; color: #6b7280; margin-bottom: 3px; }
+      .token-bar-track { height: 4px; background: rgba(17,24,39,0.08); border-radius: 2px; overflow: hidden; }
+      .token-bar-fill { height: 100%; background: #4f46e5; border-radius: 2px; transition: width 0.4s ease; }
+      .token-bar-sub { font-size: 10px; color: #6b7280; margin-top: 3px; }
       .link {
         color: #4f46e5; cursor: pointer;
         font-size: 11.5px; font-weight: 600;
@@ -688,6 +688,7 @@
           border-color: rgba(255, 255, 255, 0.10);
         }
         .menu .footer { border-color: rgba(255, 255, 255, 0.06); }
+        .token-bar-wrap { border-color: rgba(255,255,255,0.06); }
         .token-bar-track { background: rgba(255,255,255,0.08); }
         .token-bar-labels, .token-bar-sub { color: #9ca3af; }
         .link { color: #a5b4fc; }
@@ -728,18 +729,18 @@
             <option value="structure">Structure</option>
           </select>
         </div>
-        <div class="token-bar-wrap" id="pp-token-wrap" style="display:none">
-          <div class="token-bar-labels">
-            <span id="pp-token-label">Tokens this month</span>
-            <span id="pp-token-pct"></span>
-          </div>
-          <div class="token-bar-track"><div class="token-bar-fill" id="pp-token-fill"></div></div>
-          <div class="token-bar-sub" id="pp-token-sub"></div>
-        </div>
         <div class="footer">
           <button class="link subtle" id="pp-reset-pos" type="button">Reset position</button>
           <button class="link" id="pp-export-ctx" type="button">Export chat</button>
           <button class="link" id="pp-open-options" type="button">All settings</button>
+        </div>
+        <div class="token-bar-wrap" id="pp-token-wrap" style="display:none">
+          <div class="token-bar-labels">
+            <span id="pp-token-label">PromptAssist tokens this month</span>
+            <span id="pp-token-pct"></span>
+          </div>
+          <div class="token-bar-track"><div class="token-bar-fill" id="pp-token-fill"></div></div>
+          <div class="token-bar-sub" id="pp-token-sub"></div>
         </div>
       </div>
     </div>
@@ -1085,21 +1086,32 @@
       </div>`;
     }
     if (o.mode === "export") {
-      const turnCount = o.turns || 0;
-      const est = o.estimatedTokens || 0;
+      const turns = o.turns || [];
+      const turnCount = turns.length;
+      const preview = buildExportMarkdown(turns, "");
+      const est = estimateTokens(preview);
+      const noTurns = turnCount === 0;
+      const targetBtns = EXPORT_TARGETS.filter((t) => t.id !== adapter.id).map((t) =>
+        `<button data-action="export-to" data-target-id="${t.id}" data-target-url="${t.url}" data-target-label="${t.label}" class="export-target-btn">${t.icon} ${t.label}</button>`
+      ).join("");
       return `${base}
       <div class="panel" role="dialog" aria-label="Export chat context">
         <div class="body stack">
-          <p class="muted" style="margin:0 0 6px">
-            <strong style="color:inherit">${turnCount} messages</strong> captured · ~${fmtTokens(est)} tokens
-          </p>
-          <p class="muted tiny" style="margin:0 0 8px">Paste this into any AI tool to continue your conversation with full context.</p>
-          <textarea class="text edit" spellcheck="false" style="min-height:120px;font-size:11.5px;font-family:monospace">${esc(o.markdown)}</textarea>
+          ${noTurns
+            ? `<div class="export-warn">⚠ Could not read messages from this page. Try scrolling up to load older messages, then try again.</div>`
+            : `<div class="export-stats">${turnCount} messages captured &middot; ~${fmtTokens(est)} tokens</div>`
+          }
+          ${!noTurns ? `<p class="muted tiny" style="margin:4px 0 10px">Choose where to continue — PromptAssist will copy the conversation and open the tool:</p>
+          <div class="export-targets">${targetBtns}</div>
+          <details style="margin-top:10px">
+            <summary class="refine-toggle" style="font-size:11.5px">Preview / copy manually</summary>
+            <textarea class="text edit" spellcheck="false" id="pp-export-ta" style="min-height:100px;font-size:11px;font-family:monospace;margin-top:6px">${esc(preview)}</textarea>
+            <button data-action="copy-export" class="primary" style="margin-top:6px;width:100%">Copy to clipboard</button>
+          </details>` : ""}
         </div>
         <div class="footer">
           <span class="spacer"></span>
           <button data-action="cancel" class="link">Close</button>
-          <button data-action="copy-export" class="primary">Copy all</button>
         </div>
       </div>`;
     }
@@ -1177,9 +1189,25 @@
     }
     if (o.mode === "export") {
       click("copy-export", () => {
-        o.onCopy?.();
+        const ta = shadow.querySelector("#pp-export-ta");
+        navigator.clipboard.writeText(ta?.value || "").catch(() => {});
         const btn = shadow.querySelector('[data-action="copy-export"]');
-        if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy all"; }, 1800); }
+        if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy to clipboard"; }, 1800); }
+      });
+      shadow.querySelectorAll('[data-action="export-to"]').forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const targetLabel = btn.dataset.targetLabel;
+          const targetUrl = btn.dataset.targetUrl;
+          const md = buildExportMarkdown(o.turns || [], targetLabel);
+          navigator.clipboard.writeText(md).then(() => {
+            btn.textContent = "✓ Copied! Opening…";
+            setTimeout(() => { window.open(targetUrl, "_blank", "noopener"); }, 400);
+          }).catch(() => {
+            window.open(targetUrl, "_blank", "noopener");
+          });
+        });
       });
     }
     if (o.mode === "clarify") {
@@ -1256,6 +1284,23 @@
     .orig pre { margin-top: 6px; }
     .meta { color: #9ca3af; margin-left: 4px; }
     .tiny { font-size: 11px !important; }
+    .export-targets { display: flex; flex-direction: column; gap: 6px; }
+    .export-target-btn {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-radius: 9px; border: 1px solid rgba(79,70,229,0.25);
+      background: rgba(79,70,229,0.06); color: #4f46e5;
+      font: 600 13px/1.4 -apple-system,sans-serif; cursor: pointer; text-align: left;
+      transition: background 120ms, border-color 120ms;
+    }
+    .export-target-btn:hover { background: rgba(79,70,229,0.14); border-color: rgba(79,70,229,0.5); }
+    .export-stats { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+    .export-warn { padding: 10px 12px; background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; font-size: 12.5px; color: #92400e; }
+    @media (prefers-color-scheme: dark) {
+      .export-target-btn { border-color: rgba(165,180,252,0.2); background: rgba(79,70,229,0.1); color: #a5b4fc; }
+      .export-target-btn:hover { background: rgba(79,70,229,0.22); border-color: rgba(165,180,252,0.4); }
+      .export-stats { color: #e5e7eb; }
+      .export-warn { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #fbbf24; }
+    }
     .refine-section { margin-top: 4px; }
     .refine-toggle {
       cursor: pointer; padding: 4px 2px;
@@ -1500,67 +1545,103 @@ USER SETTINGS:
   function estimateTokens(text) {
     return Math.ceil((text || "").length / 4);
   }
+  function mergeByDocOrder(humanEls, aiEls) {
+    const tagged = [
+      ...humanEls.map((el) => ({ role: "Human", el })),
+      ...aiEls.map((el) => ({ role: "Assistant", el }))
+    ];
+    tagged.sort((a, b) => {
+      const pos = a.el.compareDocumentPosition(b.el);
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+      return 0;
+    });
+    const result = [];
+    for (const item of tagged) {
+      const isNested = result.some((r) => r.el.contains(item.el) || item.el.contains(r.el));
+      if (!isNested) {
+        const text = item.el.innerText?.trim();
+        if (text) result.push({ role: item.role, el: item.el, text });
+      }
+    }
+    return result.map(({ role, text }) => ({ role, text }));
+  }
   function readConversationHistory() {
-    const turns = [];
     const id = adapter.id;
     try {
       if (id === "claude") {
-        document.querySelectorAll('[data-testid="human-turn"], [data-testid="ai-turn"], div.font-claude-message, [data-testid="conversation-turn-human"], [data-testid="conversation-turn-assistant"]').forEach((el) => {
-          const role = (el.dataset.testid || "").includes("human") || (el.dataset.testid || "").includes("user") ? "Human" : "Assistant";
-          const text = el.innerText?.trim();
-          if (text) turns.push({ role, text });
-        });
-      } else if (id === "chatgpt") {
-        document.querySelectorAll('[data-message-author-role]').forEach((el) => {
-          const role = el.dataset.messageAuthorRole === "user" ? "Human" : "Assistant";
-          const text = el.innerText?.trim();
-          if (text) turns.push({ role, text });
-        });
-      } else if (id === "gemini") {
-        document.querySelectorAll('user-query, model-response, .user-query-text, .response-content').forEach((el) => {
-          const role = el.tagName?.toLowerCase() === "user-query" || el.classList.contains("user-query-text") ? "Human" : "Assistant";
-          const text = el.innerText?.trim();
-          if (text) turns.push({ role, text });
-        });
-      } else if (id === "perplexity") {
-        document.querySelectorAll('[class*="UserMessage"], [class*="AnswerBody"]').forEach((el) => {
-          const role = (el.className || "").toLowerCase().includes("user") ? "Human" : "Assistant";
-          const text = el.innerText?.trim();
-          if (text) turns.push({ role, text });
-        });
+        const human = [...document.querySelectorAll(
+          '[data-testid="human-turn"], [data-testid="user-message"]'
+        )];
+        const ai = [...document.querySelectorAll(
+          'div.font-claude-message, [data-testid="ai-turn"], [data-testid="conversation-turn-assistant"]'
+        )];
+        const merged = mergeByDocOrder(human, ai);
+        if (merged.length) return merged;
+        // Fallback: all turn containers in order
+        const all = [...document.querySelectorAll('[data-testid^="conversation-turn"]')];
+        return all.map((el) => ({
+          role: (el.dataset.testid || "").includes("human") ? "Human" : "Assistant",
+          text: el.innerText?.trim()
+        })).filter((t) => t.text);
+      }
+      if (id === "chatgpt") {
+        // Each message div carries data-message-author-role — direct and reliable
+        const msgs = [...document.querySelectorAll('[data-message-author-role]')];
+        // Filter out nested duplicates
+        return msgs
+          .filter((el) => !msgs.some((p) => p !== el && p.contains(el)))
+          .map((el) => ({
+            role: el.dataset.messageAuthorRole === "user" ? "Human" : "Assistant",
+            text: el.innerText?.trim()
+          }))
+          .filter((t) => t.text);
+      }
+      if (id === "gemini") {
+        const human = [...document.querySelectorAll("user-query")];
+        const ai = [...document.querySelectorAll("model-response")];
+        return mergeByDocOrder(human, ai);
+      }
+      if (id === "perplexity") {
+        // Perplexity: user questions are in elements with "UserMessage" in class names
+        // answers in divs with id^="markdown-content" or class prose
+        const human = [...document.querySelectorAll(
+          '[class*="UserMessage"], [class*="userMessage"], [data-testid*="user-query"]'
+        )];
+        const ai = [...document.querySelectorAll(
+          '[id^="markdown-content"], div.prose, [data-testid="answer-text"], [class*="AnswerBody"]'
+        )];
+        return mergeByDocOrder(human, ai);
       }
     } catch {}
-    return turns;
+    return [];
   }
-  function buildExportMarkdown(turns) {
+  function buildExportMarkdown(turns, targetTool) {
     const site = adapter.id || location.hostname;
     const date = new Date().toLocaleString();
-    let md = `# Chat Export — ${site}\n_Exported via PromptAssist on ${date}_\n\n---\n\n`;
-    if (!turns.length) {
-      md += "_No conversation messages could be read from this page. Copy the text manually._\n";
-    } else {
-      for (const t of turns) {
-        md += `**${t.role}:**\n${t.text}\n\n---\n\n`;
-      }
+    const intro = targetTool
+      ? `Continue this conversation in ${targetTool}. The full chat history is below.\n\n`
+      : "";
+    let md = `${intro}# Chat Export — ${site}\n_Exported via PromptAssist on ${date}_\n\n---\n\n`;
+    for (const t of turns) {
+      md += `**${t.role}:**\n${t.text}\n\n---\n\n`;
     }
     md += `\n_Total turns: ${turns.length}_\n`;
     return md;
   }
+  const EXPORT_TARGETS = [
+    { id: "claude", label: "Claude", url: "https://claude.ai/new", icon: "✦" },
+    { id: "chatgpt", label: "ChatGPT", url: "https://chatgpt.com/", icon: "🤖" },
+    { id: "gemini", label: "Gemini", url: "https://gemini.google.com/app", icon: "✨" },
+    { id: "perplexity", label: "Perplexity", url: "https://www.perplexity.ai/", icon: "🔍" }
+  ];
   function showExportOverlay() {
     const turns = readConversationHistory();
-    const markdown = buildExportMarkdown(turns);
-    const totalChars = markdown.length;
-    const estimatedTokens = estimateTokens(markdown);
     const anchor = currentInput || document.body;
     const handle = showOverlay({
       mode: "export",
-      markdown,
-      turns: turns.length,
-      estimatedTokens,
-      anchor,
-      onCopy: () => {
-        navigator.clipboard.writeText(markdown).catch(() => {});
-      }
+      turns,
+      anchor
     });
     return handle;
   }
