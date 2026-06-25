@@ -123,6 +123,25 @@
     </div>
 
     <div class="card">
+      <h2>Token usage</h2>
+      <div class="row">
+        <label for="tokenBudget">Monthly token budget</label>
+        <input id="tokenBudget" type="text" placeholder="e.g. 100000" style="min-width:140px" />
+      </div>
+      <p class="help">Set a soft limit to track how many tokens PromptAssist uses each month. This resets automatically on the 1st of each month. The token count is shown in the floating button menu while you work.</p>
+      <div id="token-usage-row" style="margin-top:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:13px;font-weight:600" id="token-used-label">0 tokens used this month</span>
+          <button id="reset-tokens" type="button" class="ghost" style="padding:4px 10px;font-size:12px;">Reset counter</button>
+        </div>
+        <div style="height:8px;border-radius:4px;background:color-mix(in srgb,CanvasText 10%,transparent);overflow:hidden;">
+          <div id="token-bar" style="height:100%;border-radius:4px;background:#4f46e5;transition:width 0.4s ease;width:0%"></div>
+        </div>
+        <p id="token-bar-label" class="help" style="margin-top:4px;"></p>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Shortcut</h2>
       <p>Press <kbd>⌘ / Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> in any supported site to optimize. Right-click the floating <b>Optimize</b> button to open these settings. Change the shortcut at <code>chrome://extensions/shortcuts</code>.</p>
     </div>

@@ -20,6 +20,24 @@ function repopulateModels(provider, currentModel) {
   const known = MODELS_BY_PROVIDER[provider].some((m) => m.id === currentModel);
   select.value = known ? currentModel : defaultModelFor(provider);
 }
+function fmtTokens(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return String(n);
+}
+async function loadTokenStats(budget) {
+  const s = await getSettings();
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const used = s.tokenResetDate === monthKey ? (s.tokensUsed || 0) : 0;
+  const pct = budget > 0 ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+  const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#4f46e5";
+  $("token-bar").style.width = pct + "%";
+  $("token-bar").style.background = color;
+  $("token-used-label").textContent = `${fmtTokens(used)} / ${fmtTokens(budget)} tokens used this month (${pct}%)`;
+  $("token-used-label").style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
+  $("token-bar-label").textContent = `${fmtTokens(budget - used)} tokens remaining. Resets automatically on the 1st of each month.`;
+}
 async function load() {
   const s = await getSettings();
   $("mode").value = s.mode;
@@ -31,12 +49,16 @@ async function load() {
   $("verbosity").value = s.verbosity;
   $("blocklist").value = s.blocklist.join("\n");
   document.getElementById("key-hint").innerHTML = KEY_HINTS[s.apiProvider];
+  const budget = s.tokenBudget || 100000;
+  $("tokenBudget").value = budget;
+  await loadTokenStats(budget);
 }
 async function save() {
   const provider = $("apiProvider").value;
   const current = await getSettings();
   const apiKeys = { ...current.apiKeys, [provider]: $("apiKey").value.trim() };
   const model = $("apiModel").value || defaultModelFor(provider);
+  const budget = parseInt($("tokenBudget").value, 10) || 100000;
   await setSettings({
     mode: $("mode").value,
     apiProvider: provider,
@@ -45,8 +67,10 @@ async function save() {
     promptStyle: $("promptStyle").value,
     tone: $("tone").value,
     verbosity: $("verbosity").value,
+    tokenBudget: budget,
     blocklist: $("blocklist").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
   });
+  await loadTokenStats(budget);
   flashSaved();
 }
 function flashSaved() {
@@ -72,4 +96,11 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("save").addEventListener("click", () => void save());
   document.getElementById("reset").addEventListener("click", () => void reset());
   $("apiProvider").addEventListener("change", () => void onProviderChange());
+  document.getElementById("reset-tokens").addEventListener("click", async () => {
+    if (!confirm("Reset your token counter to zero for this month?")) return;
+    await setSettings({ tokensUsed: 0, tokenResetDate: null });
+    const budget = parseInt($("tokenBudget").value, 10) || 100000;
+    await loadTokenStats(budget);
+    flashSaved();
+  });
 });

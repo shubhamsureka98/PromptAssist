@@ -662,6 +662,11 @@
         display: flex; justify-content: space-between; align-items: center; gap: 8px;
         padding-left: 6px; padding-right: 6px;
       }
+      .token-bar-wrap { padding: 8px 6px 4px; }
+      .token-bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+      .token-bar-track { height: 5px; background: rgba(17,24,39,0.08); border-radius: 3px; overflow: hidden; }
+      .token-bar-fill { height: 100%; background: #4f46e5; border-radius: 3px; transition: width 0.4s ease; }
+      .token-bar-sub { font-size: 10.5px; color: #6b7280; margin-top: 4px; }
       .link {
         color: #4f46e5; cursor: pointer;
         font-size: 11.5px; font-weight: 600;
@@ -683,6 +688,8 @@
           border-color: rgba(255, 255, 255, 0.10);
         }
         .menu .footer { border-color: rgba(255, 255, 255, 0.06); }
+        .token-bar-track { background: rgba(255,255,255,0.08); }
+        .token-bar-labels, .token-bar-sub { color: #9ca3af; }
         .link { color: #a5b4fc; }
         .link.subtle { color: #9ca3af; }
         .link.subtle:hover { color: #f3f4f6; }
@@ -721,8 +728,17 @@
             <option value="structure">Structure</option>
           </select>
         </div>
+        <div class="token-bar-wrap" id="pp-token-wrap" style="display:none">
+          <div class="token-bar-labels">
+            <span id="pp-token-label">Tokens this month</span>
+            <span id="pp-token-pct"></span>
+          </div>
+          <div class="token-bar-track"><div class="token-bar-fill" id="pp-token-fill"></div></div>
+          <div class="token-bar-sub" id="pp-token-sub"></div>
+        </div>
         <div class="footer">
           <button class="link subtle" id="pp-reset-pos" type="button">Reset position</button>
+          <button class="link" id="pp-export-ctx" type="button">Export chat</button>
           <button class="link" id="pp-open-options" type="button">All settings</button>
         </div>
       </div>
@@ -739,11 +755,31 @@
     const rowModel = shadow.getElementById("pp-row-model");
     const openOptionsBtn = shadow.getElementById("pp-open-options");
     const resetPosBtn = shadow.getElementById("pp-reset-pos");
+    const exportCtxBtn = shadow.getElementById("pp-export-ctx");
+    const tokenWrap = shadow.getElementById("pp-token-wrap");
+    const tokenLabel = shadow.getElementById("pp-token-label");
+    const tokenPct = shadow.getElementById("pp-token-pct");
+    const tokenFill = shadow.getElementById("pp-token-fill");
+    const tokenSub = shadow.getElementById("pp-token-sub");
     void hydrate();
     const storageListener = (changes) => {
       if (changes["promptpolish.settings.v1"]) void hydrate();
     };
     chrome.storage.onChanged.addListener(storageListener);
+    function updateTokenBar(used, budget) {
+      if (!budget) { tokenWrap.style.display = "none"; return; }
+      tokenWrap.style.display = "";
+      const pct = Math.min(100, Math.round((used / budget) * 100));
+      const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#4f46e5";
+      tokenFill.style.width = pct + "%";
+      tokenFill.style.background = color;
+      tokenPct.textContent = pct + "%";
+      tokenPct.style.color = color;
+      tokenSub.textContent = `${fmtTokens(used)} / ${fmtTokens(budget)} tokens used`;
+      if (pct >= 90) tokenSub.style.color = "#ef4444";
+      else if (pct >= 70) tokenSub.style.color = "#f59e0b";
+      else tokenSub.style.color = "";
+    }
     async function hydrate() {
       let s;
       try {
@@ -762,6 +798,11 @@
       }
       modelSel.value = s.apiModel;
       styleSel.value = s.promptStyle ?? "auto";
+      if (s.mode === "api" && isContextValid()) {
+        chrome.runtime.sendMessage({ type: "GET_TOKEN_STATS" }).then((r) => {
+          if (r) updateTokenBar(r.tokensUsed, r.tokenBudget);
+        }).catch(() => {});
+      }
     }
     btnMain.addEventListener("click", (e) => {
       e.preventDefault();
@@ -793,6 +834,12 @@
       userPlacedPos = false;
       menu.classList.remove("open");
       void reposition();
+    });
+    exportCtxBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      menu.classList.remove("open");
+      void showExportOverlay();
     });
     const onDocPointer = (e) => {
       if (!menu.classList.contains("open")) return;
@@ -1037,13 +1084,33 @@
         </div>
       </div>`;
     }
+    if (o.mode === "export") {
+      const turnCount = o.turns || 0;
+      const est = o.estimatedTokens || 0;
+      return `${base}
+      <div class="panel" role="dialog" aria-label="Export chat context">
+        <div class="body stack">
+          <p class="muted" style="margin:0 0 6px">
+            <strong style="color:inherit">${turnCount} messages</strong> captured · ~${fmtTokens(est)} tokens
+          </p>
+          <p class="muted tiny" style="margin:0 0 8px">Paste this into any AI tool to continue your conversation with full context.</p>
+          <textarea class="text edit" spellcheck="false" style="min-height:120px;font-size:11.5px;font-family:monospace">${esc(o.markdown)}</textarea>
+        </div>
+        <div class="footer">
+          <span class="spacer"></span>
+          <button data-action="cancel" class="link">Close</button>
+          <button data-action="copy-export" class="primary">Copy all</button>
+        </div>
+      </div>`;
+    }
     const attachHint = o.attachmentsCount && o.attachmentsCount > 0 ? `<span class="meta">\xB7 ${o.attachmentsCount} attachment${o.attachmentsCount > 1 ? "s" : ""}</span>` : "";
+    const tokenHint = o.tokens ? `<span class="meta">\xB7 ${fmtTokens(o.tokens)} tokens</span>` : "";
     return `${base}
     <div class="panel" role="dialog" aria-label="Review optimized prompt">
       <div class="body stack">
         <textarea class="text edit" data-id="opt-text" spellcheck="false" aria-label="Optimized prompt (editable)">${esc(o.optimized)}</textarea>
         <details class="orig">
-          <summary>Show original ${attachHint}</summary>
+          <summary>Show original ${attachHint}${tokenHint}</summary>
           <pre class="text muted">${esc(o.original)}</pre>
         </details>
         <details class="refine-section">
@@ -1106,6 +1173,13 @@
       click("reoptimize", () => {
         const refineText = shadow.querySelector('[data-id="refine-text"]')?.value?.trim();
         if (refineText) o.onReoptimize?.(getCurrent(), refineText);
+      });
+    }
+    if (o.mode === "export") {
+      click("copy-export", () => {
+        o.onCopy?.();
+        const btn = shadow.querySelector('[data-action="copy-export"]');
+        if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy all"; }, 1800); }
       });
     }
     if (o.mode === "clarify") {
@@ -1181,6 +1255,7 @@
     .orig summary:hover { color: #374151; }
     .orig pre { margin-top: 6px; }
     .meta { color: #9ca3af; margin-left: 4px; }
+    .tiny { font-size: 11px !important; }
     .refine-section { margin-top: 4px; }
     .refine-toggle {
       cursor: pointer; padding: 4px 2px;
@@ -1417,6 +1492,78 @@ USER SETTINGS:
     teardown?.();
     teardown = mountTriggerButton(input, () => void onOptimize());
   }
+  function fmtTokens(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+    if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+    return String(n);
+  }
+  function estimateTokens(text) {
+    return Math.ceil((text || "").length / 4);
+  }
+  function readConversationHistory() {
+    const turns = [];
+    const id = adapter.id;
+    try {
+      if (id === "claude") {
+        document.querySelectorAll('[data-testid="human-turn"], [data-testid="ai-turn"], div.font-claude-message, [data-testid="conversation-turn-human"], [data-testid="conversation-turn-assistant"]').forEach((el) => {
+          const role = (el.dataset.testid || "").includes("human") || (el.dataset.testid || "").includes("user") ? "Human" : "Assistant";
+          const text = el.innerText?.trim();
+          if (text) turns.push({ role, text });
+        });
+      } else if (id === "chatgpt") {
+        document.querySelectorAll('[data-message-author-role]').forEach((el) => {
+          const role = el.dataset.messageAuthorRole === "user" ? "Human" : "Assistant";
+          const text = el.innerText?.trim();
+          if (text) turns.push({ role, text });
+        });
+      } else if (id === "gemini") {
+        document.querySelectorAll('user-query, model-response, .user-query-text, .response-content').forEach((el) => {
+          const role = el.tagName?.toLowerCase() === "user-query" || el.classList.contains("user-query-text") ? "Human" : "Assistant";
+          const text = el.innerText?.trim();
+          if (text) turns.push({ role, text });
+        });
+      } else if (id === "perplexity") {
+        document.querySelectorAll('[class*="UserMessage"], [class*="AnswerBody"]').forEach((el) => {
+          const role = (el.className || "").toLowerCase().includes("user") ? "Human" : "Assistant";
+          const text = el.innerText?.trim();
+          if (text) turns.push({ role, text });
+        });
+      }
+    } catch {}
+    return turns;
+  }
+  function buildExportMarkdown(turns) {
+    const site = adapter.id || location.hostname;
+    const date = new Date().toLocaleString();
+    let md = `# Chat Export — ${site}\n_Exported via PromptAssist on ${date}_\n\n---\n\n`;
+    if (!turns.length) {
+      md += "_No conversation messages could be read from this page. Copy the text manually._\n";
+    } else {
+      for (const t of turns) {
+        md += `**${t.role}:**\n${t.text}\n\n---\n\n`;
+      }
+    }
+    md += `\n_Total turns: ${turns.length}_\n`;
+    return md;
+  }
+  function showExportOverlay() {
+    const turns = readConversationHistory();
+    const markdown = buildExportMarkdown(turns);
+    const totalChars = markdown.length;
+    const estimatedTokens = estimateTokens(markdown);
+    const anchor = currentInput || document.body;
+    const handle = showOverlay({
+      mode: "export",
+      markdown,
+      turns: turns.length,
+      estimatedTokens,
+      anchor,
+      onCopy: () => {
+        navigator.clipboard.writeText(markdown).catch(() => {});
+      }
+    });
+    return handle;
+  }
   async function onOptimize() {
     attach();
     if (!currentInput) {
@@ -1493,6 +1640,7 @@ USER SETTINGS:
       mode: "diff",
       original: originalDraft,
       optimized: res.optimized,
+      tokens: res.tokens || 0,
       anchor: currentInput,
       attachmentsCount,
       canOpenInNewChat: !!adapter.newChatUrl,

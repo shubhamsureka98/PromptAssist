@@ -37,6 +37,9 @@ const DEFAULT_SETTINGS = {
   tone: "neutral",
   verbosity: "standard",
   promptStyle: "auto",
+  tokenBudget: 100000,
+  tokensUsed: 0,
+  tokenResetDate: null,
   blocklist: []
 };
 const KEY = "promptpolish.settings.v1";

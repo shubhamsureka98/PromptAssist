@@ -93,15 +93,26 @@ async function runApiEngine(draft, settings, site, attachments = []) {
   const model = settings.apiModel || defaultModelFor(provider);
   const prompt = buildMetaPrompt(draft, settings, site, attachments);
   try {
-    const raw = provider === "openrouter" ? await callOpenRouter(prompt, key, model) : provider === "anthropic" ? await callAnthropic(prompt, key, model) : provider === "openai" ? await callOpenAI(prompt, key, model) : await callGoogle(prompt, key, model);
+    const { content: raw, tokens } = provider === "openrouter" ? await callOpenRouter(prompt, key, model) : provider === "anthropic" ? await callAnthropic(prompt, key, model) : provider === "openai" ? await callOpenAI(prompt, key, model) : await callGoogle(prompt, key, model);
     const parsed = parseMetaResponse(raw);
     if (parsed.optimized && parsed.optimized.trim()) {
-      return { kind: "ok", optimized: parsed.optimized.trim() };
+      return { kind: "ok", optimized: parsed.optimized.trim(), tokens };
     }
-    return { kind: "ok", optimized: draft.trim() };
+    return { kind: "ok", optimized: draft.trim(), tokens };
   } catch (err) {
     return { kind: "error", message: err instanceof Error ? err.message : String(err) };
   }
+}
+async function accumulateTokens(tokens) {
+  if (!tokens || tokens <= 0) return;
+  const s = await getSettings();
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const resetNeeded = s.tokenResetDate !== monthKey;
+  await setSettings({
+    tokensUsed: resetNeeded ? tokens : (s.tokensUsed || 0) + tokens,
+    tokenResetDate: monthKey
+  });
 }
 async function callOpenRouter(prompt, key, model) {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -122,7 +133,9 @@ async function callOpenRouter(prompt, key, model) {
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new Error("OpenRouter: empty response.");
-  return content;
+  const tokens = (data?.usage?.total_tokens) || 0;
+  void accumulateTokens(tokens);
+  return { content, tokens };
 }
 async function callAnthropic(prompt, key, model) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -143,7 +156,9 @@ async function callAnthropic(prompt, key, model) {
   const data = await res.json();
   const content = data?.content?.[0]?.text;
   if (typeof content !== "string") throw new Error("Anthropic: empty response.");
-  return content;
+  const tokens = (data?.usage?.input_tokens || 0) + (data?.usage?.output_tokens || 0);
+  void accumulateTokens(tokens);
+  return { content, tokens };
 }
 async function callOpenAI(prompt, key, model) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -159,7 +174,9 @@ async function callOpenAI(prompt, key, model) {
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new Error("OpenAI: empty response.");
-  return content;
+  const tokens = (data?.usage?.total_tokens) || 0;
+  void accumulateTokens(tokens);
+  return { content, tokens };
 }
 async function callGoogle(prompt, key, model) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
@@ -175,7 +192,9 @@ async function callGoogle(prompt, key, model) {
   const data = await res.json();
   const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (typeof content !== "string") throw new Error("Google: empty response.");
-  return content;
+  const tokens = (data?.usageMetadata?.totalTokenCount) || 0;
+  void accumulateTokens(tokens);
+  return { content, tokens };
 }
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
@@ -192,6 +211,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         message: err instanceof Error ? err.message : String(err)
       })
     );
+    return true;
+  }
+  if (t === "GET_TOKEN_STATS") {
+    getSettings().then((s) => {
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${now.getMonth()}`;
+      sendResponse({
+        tokensUsed: s.tokenResetDate === monthKey ? (s.tokensUsed || 0) : 0,
+        tokenBudget: s.tokenBudget || 100000
+      });
+    }).catch(() => sendResponse({ tokensUsed: 0, tokenBudget: 100000 }));
+    return true;
+  }
+  if (t === "RESET_TOKENS") {
+    setSettings({ tokensUsed: 0, tokenResetDate: null }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
     return true;
   }
   return false;
