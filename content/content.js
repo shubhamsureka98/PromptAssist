@@ -265,6 +265,32 @@
     },
     newChatUrl() {
       return "https://claude.ai/new";
+    },
+    readPlatformQuota() {
+      // Claude Pro shows usage as text or progress bar in various places
+      // Try ARIA / data attributes first, then text scanning
+      const platformLabel = "Claude";
+
+      // 1. Progress bar with aria-valuenow / aria-valuemax
+      const progressEl = document.querySelector('[role="progressbar"][aria-valuemax]');
+      if (progressEl) {
+        const used = parseFloat(progressEl.getAttribute("aria-valuenow") || "0");
+        const total = parseFloat(progressEl.getAttribute("aria-valuemax") || "0");
+        const label = progressEl.getAttribute("aria-label") || progressEl.closest("[aria-label]")?.getAttribute("aria-label") || "";
+        const period = extractPeriod(label) || "this period";
+        if (total > 0) return { platformLabel, used, total, unit: "messages", period };
+      }
+
+      // 2. Text scan: "X of Y messages", "X messages left", "X remaining"
+      const quota = scanQuotaText(document.body, [
+        /(\d+)\s+of\s+(\d+)\s+(messages?|requests?|queries|prompts?)/i,
+        /(\d+)\s+(messages?|requests?|queries?|prompts?)\s+(left|remaining)/i,
+        /(\d+)\s+(messages?|requests?|queries?|prompts?)\s+(?:left|remaining)\s+(?:today|this hour|this week|per day)/i,
+        /usage[:\s]+(\d+)%/i
+      ]);
+      if (quota) return { platformLabel, ...quota };
+
+      return null;
     }
   };
   const chatgptAdapter = {
@@ -322,6 +348,41 @@
     },
     newChatUrl() {
       return "https://chatgpt.com/?temporary-chat=true";
+    },
+    readPlatformQuota() {
+      const platformLabel = "ChatGPT";
+
+      // 1. Progress bar
+      const progressEl = document.querySelector('[role="progressbar"][aria-valuemax]');
+      if (progressEl) {
+        const used = parseFloat(progressEl.getAttribute("aria-valuenow") || "0");
+        const total = parseFloat(progressEl.getAttribute("aria-valuemax") || "0");
+        const label = progressEl.getAttribute("aria-label") || "";
+        if (total > 0) return { platformLabel, used, total, unit: "messages", period: extractPeriod(label) || "per period" };
+      }
+
+      // 2. Model usage chips — ChatGPT sometimes shows "X/40" in model picker
+      const modelUsage = document.querySelector('[data-testid*="usage"], [class*="usage-bar"], [class*="message-cap"]');
+      if (modelUsage) {
+        const text = modelUsage.innerText?.trim();
+        if (text) {
+          const q = scanQuotaText(modelUsage, [/(\d+)\s*\/\s*(\d+)/]);
+          if (q) return { platformLabel, ...q, unit: "messages" };
+          return { platformLabel, raw: text, period: "per period" };
+        }
+      }
+
+      // 3. Full-page text scan
+      const quota = scanQuotaText(document.body, [
+        /(\d+)\s+of\s+(\d+)\s+(messages?|requests?)/i,
+        /(\d+)\s+(messages?|requests?)\s+(left|remaining)/i,
+        /(\d+)\s*\/\s*(\d+)\s+(messages?)/i,
+        /reached\s+(?:your\s+)?(?:message\s+)?limit/i,
+        /GPT-?4[o\d]*[:\s]+(\d+)\s+(messages?)\s+(left|remaining)/i
+      ]);
+      if (quota) return { platformLabel, ...quota };
+
+      return null;
     }
   };
   const perplexityAdapter = {
@@ -407,6 +468,16 @@
     },
     newChatUrl() {
       return "https://www.perplexity.ai/";
+    },
+    readPlatformQuota() {
+      const platformLabel = "Perplexity";
+      const quota = scanQuotaText(document.body, [
+        /(\d+)\s+(Pro\s+)?(searches?|queries?|requests?)\s+(left|remaining)/i,
+        /(\d+)\s+of\s+(\d+)\s+(Pro\s+)?(searches?|queries?)/i,
+        /(\d+)\s+(searches?|queries?)\s+(?:left\s+)?(?:today|this\s+day|per\s+day)/i
+      ]);
+      if (quota) return { platformLabel, ...quota };
+      return null;
     }
   };
   const geminiAdapter = {
@@ -463,6 +534,22 @@
     },
     newChatUrl() {
       return "https://gemini.google.com/app";
+    },
+    readPlatformQuota() {
+      const platformLabel = "Gemini";
+      // Gemini Advanced may show usage in some variants
+      const progressEl = document.querySelector('[role="progressbar"][aria-valuemax]');
+      if (progressEl) {
+        const used = parseFloat(progressEl.getAttribute("aria-valuenow") || "0");
+        const total = parseFloat(progressEl.getAttribute("aria-valuemax") || "0");
+        if (total > 0) return { platformLabel, used, total, unit: "requests", period: "per day" };
+      }
+      const quota = scanQuotaText(document.body, [
+        /(\d+)\s+(requests?|queries?|messages?)\s+(left|remaining)/i,
+        /(\d+)\s+of\s+(\d+)\s+(requests?|queries?|messages?)/i
+      ]);
+      if (quota) return { platformLabel, ...quota };
+      return null;
     }
   };
   const genericAdapter = {
@@ -662,6 +749,13 @@
         display: flex; justify-content: space-between; align-items: center; gap: 8px;
         padding-left: 6px; padding-right: 6px;
       }
+      .quota-wrap { padding: 8px 6px 4px; border-top: 1px solid rgba(17,24,39,0.08); margin-top: 2px; }
+      .quota-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+      .quota-header span:first-child { font-size: 11.5px; font-weight: 600; color: #111827; }
+      .quota-period { font-size: 10.5px; color: #6b7280; }
+      .quota-bar-track { height: 5px; background: rgba(17,24,39,0.08); border-radius: 3px; overflow: hidden; margin-bottom: 4px; }
+      .quota-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+      .quota-detail { font-size: 11px; color: #374151; }
       .token-bar-wrap { padding: 6px 6px 2px; border-top: 1px solid rgba(17,24,39,0.06); margin-top: 4px; }
       .token-bar-labels { display: flex; justify-content: space-between; font-size: 10.5px; color: #6b7280; margin-bottom: 3px; }
       .token-bar-track { height: 4px; background: rgba(17,24,39,0.08); border-radius: 2px; overflow: hidden; }
@@ -688,6 +782,11 @@
           border-color: rgba(255, 255, 255, 0.10);
         }
         .menu .footer { border-color: rgba(255, 255, 255, 0.06); }
+        .quota-wrap { border-color: rgba(255,255,255,0.07); }
+        .quota-header span:first-child { color: #e5e7eb; }
+        .quota-period { color: #6b7280; }
+        .quota-bar-track { background: rgba(255,255,255,0.08); }
+        .quota-detail { color: #9ca3af; }
         .token-bar-wrap { border-color: rgba(255,255,255,0.06); }
         .token-bar-track { background: rgba(255,255,255,0.08); }
         .token-bar-labels, .token-bar-sub { color: #9ca3af; }
@@ -729,6 +828,16 @@
             <option value="structure">Structure</option>
           </select>
         </div>
+        <div class="quota-wrap" id="pp-quota-wrap" style="display:none">
+          <div class="quota-header">
+            <span id="pp-quota-platform"></span>
+            <span id="pp-quota-period" class="quota-period"></span>
+          </div>
+          <div class="quota-bar-track" id="pp-quota-bar-track" style="display:none">
+            <div class="quota-bar-fill" id="pp-quota-bar-fill"></div>
+          </div>
+          <div class="quota-detail" id="pp-quota-detail"></div>
+        </div>
         <div class="footer">
           <button class="link subtle" id="pp-reset-pos" type="button">Reset position</button>
           <button class="link" id="pp-export-ctx" type="button">Export chat</button>
@@ -736,7 +845,7 @@
         </div>
         <div class="token-bar-wrap" id="pp-token-wrap" style="display:none">
           <div class="token-bar-labels">
-            <span id="pp-token-label">PromptAssist tokens this month</span>
+            <span id="pp-token-label">PromptAssist API usage</span>
             <span id="pp-token-pct"></span>
           </div>
           <div class="token-bar-track"><div class="token-bar-fill" id="pp-token-fill"></div></div>
@@ -762,6 +871,38 @@
     const tokenPct = shadow.getElementById("pp-token-pct");
     const tokenFill = shadow.getElementById("pp-token-fill");
     const tokenSub = shadow.getElementById("pp-token-sub");
+    const quotaWrap = shadow.getElementById("pp-quota-wrap");
+    const quotaPlatform = shadow.getElementById("pp-quota-platform");
+    const quotaPeriod = shadow.getElementById("pp-quota-period");
+    const quotaBarTrack = shadow.getElementById("pp-quota-bar-track");
+    const quotaBarFill = shadow.getElementById("pp-quota-bar-fill");
+    const quotaDetail = shadow.getElementById("pp-quota-detail");
+    function renderPlatformQuota(q) {
+      if (!q) { quotaWrap.style.display = "none"; return; }
+      quotaWrap.style.display = "";
+      quotaPlatform.textContent = q.platformLabel || adapter.id;
+      quotaPeriod.textContent = q.period ? `· ${q.period}` : "";
+      if (q.used != null && q.total != null && q.total > 0) {
+        const pct = Math.min(100, Math.round((q.used / q.total) * 100));
+        const remaining = q.total - q.used;
+        const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
+        quotaBarTrack.style.display = "";
+        quotaBarFill.style.width = pct + "%";
+        quotaBarFill.style.background = color;
+        quotaDetail.textContent = `${remaining} of ${q.total} ${q.unit || "message"}s remaining`;
+        quotaDetail.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
+      } else if (q.remaining != null) {
+        quotaBarTrack.style.display = "none";
+        quotaDetail.textContent = `${q.remaining} ${q.unit || "message"}s remaining`;
+        quotaDetail.style.color = q.remaining <= 3 ? "#ef4444" : "";
+      } else if (q.raw) {
+        quotaBarTrack.style.display = "none";
+        quotaDetail.textContent = q.raw;
+        quotaDetail.style.color = "";
+      } else {
+        quotaWrap.style.display = "none";
+      }
+    }
     void hydrate();
     const storageListener = (changes) => {
       if (changes["promptpolish.settings.v1"]) void hydrate();
@@ -805,6 +946,11 @@
           if (r) updateTokenBar(r.byPlatform, r.tokenBudget);
         }).catch(() => {});
       }
+      // Read platform's own usage quota from the page DOM
+      try {
+        const quota = adapter.readPlatformQuota?.();
+        renderPlatformQuota(quota || null);
+      } catch { renderPlatformQuota(null); }
     }
     btnMain.addEventListener("click", (e) => {
       e.preventDefault();
@@ -815,6 +961,9 @@
       e.preventDefault();
       e.stopPropagation();
       menu.classList.toggle("open");
+      if (menu.classList.contains("open")) {
+        try { renderPlatformQuota(adapter.readPlatformQuota?.()); } catch {}
+      }
     });
     pill.addEventListener("contextmenu", (e) => {
       e.preventDefault();
@@ -1537,6 +1686,55 @@ USER SETTINGS:
     currentInput = input;
     teardown?.();
     teardown = mountTriggerButton(input, () => void onOptimize());
+  }
+  function extractPeriod(text) {
+    if (!text) return null;
+    const m = text.match(/per\s+(day|week|hour|month)|today|this\s+(day|week|hour|month)|every\s+(\d+)\s+hours?/i);
+    return m ? m[0].toLowerCase() : null;
+  }
+  function scanQuotaText(root, patterns) {
+    // Walk visible text nodes in leaves looking for quota patterns
+    // Avoid scanning inside script/style/hidden elements
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const el = node.parentElement;
+        if (!el) return NodeFilter.FILTER_REJECT;
+        const tag = el.tagName?.toLowerCase();
+        if (tag === "script" || tag === "style" || tag === "noscript") return NodeFilter.FILTER_REJECT;
+        const style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden") return NodeFilter.FILTER_SKIP;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    let node;
+    while ((node = walker.nextNode())) {
+      const text = node.textContent?.trim() || "";
+      if (text.length < 3 || text.length > 200) continue;
+      for (const pat of patterns) {
+        const m = text.match(pat);
+        if (!m) continue;
+        // Pattern "X of Y unit" or "X/Y unit"
+        if (m[1] && m[2] && /^\d+$/.test(m[1]) && /^\d+$/.test(m[2])) {
+          const used = parseInt(m[1], 10);
+          const total = parseInt(m[2], 10);
+          if (total > 0 && used <= total) {
+            const unit = m[3]?.replace(/s$/, "") || "message";
+            return { used, total, unit, period: extractPeriod(text) || "", raw: text };
+          }
+        }
+        // Pattern "X remaining/left"
+        if (m[1] && /^\d+$/.test(m[1])) {
+          const remaining = parseInt(m[1], 10);
+          const unit = m[2]?.replace(/s$/, "") || "message";
+          return { remaining, unit, period: extractPeriod(text) || "", raw: text };
+        }
+        // Limit reached pattern
+        if (!m[1]) {
+          return { raw: text, period: "" };
+        }
+      }
+    }
+    return null;
   }
   function fmtTokens(n) {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
