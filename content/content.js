@@ -964,6 +964,11 @@
       menu.classList.toggle("open");
       if (menu.classList.contains("open")) {
         try { renderPlatformQuota(adapter.readPlatformQuota?.()); } catch {}
+        // Re-fetch Claude usage each time menu opens (fresh data)
+        if (adapter.id === "claude") {
+          _claudeUsageFetched = false;
+          void waitForPillThenFetch();
+        }
       }
     });
     pill.addEventListener("contextmenu", (e) => {
@@ -2125,6 +2130,40 @@ ${lines}`;
       showClaudeUsageBars(data, orgId);
     } catch {}
   }
+  // Proactively fetch usage on page load — don't wait for a message to be sent
+  async function fetchClaudeUsageOnLoad() {
+    if (adapter.id !== "claude") return;
+    try {
+      // Show loading state immediately
+      const pill = document.querySelector("[data-pa-pill]");
+      if (pill?.shadowRoot) {
+        const wrap = pill.shadowRoot.getElementById("pp-quota-wrap");
+        const hdr  = pill.shadowRoot.getElementById("pp-quota-platform");
+        const det  = pill.shadowRoot.getElementById("pp-quota-detail");
+        if (wrap) wrap.style.display = "";
+        if (hdr)  hdr.textContent = "Claude usage";
+        if (det)  { det.textContent = "Loading…"; det.style.color = "#6b7280"; }
+      }
+      const orgsRes = await fetch("/api/organizations", { credentials: "include" });
+      if (!orgsRes.ok) return;
+      const orgs = await orgsRes.json();
+      const orgId = (Array.isArray(orgs) ? orgs[0] : orgs)?.uuid || (Array.isArray(orgs) ? orgs[0] : orgs)?.id;
+      if (!orgId) return;
+      await fetchClaudeUsage(orgId);
+    } catch {}
+  }
+  // Run after pill is mounted; retry up to 5s
+  async function waitForPillThenFetch() {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      if (document.querySelector("[data-pa-pill]")) {
+        await fetchClaudeUsageOnLoad();
+        return;
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+  setTimeout(() => void waitForPillThenFetch(), 800);
   function showClaudeUsageBars(data, orgId) {
     const pill = document.querySelector("[data-pa-pill]");
     if (!pill?.shadowRoot) return;
