@@ -963,18 +963,10 @@
       e.stopPropagation();
       menu.classList.toggle("open");
       if (menu.classList.contains("open")) {
-        if (adapter.id === "claude") {
-          // Show loading + ask the page-context bridge for fresh usage
-          const els = quotaEls();
-          if (els?.wrap) {
-            els.wrap.style.display = "";
-            if (els.hdr) els.hdr.textContent = "Claude usage";
-            if (els.det && !els.det.textContent) { els.det.textContent = "Loading…"; els.det.style.color = "#6b7280"; }
-          }
-          refreshClaudeUsage();
-        } else {
-          try { renderPlatformQuota(adapter.readPlatformQuota?.()); } catch {}
-        }
+        // Always show the conversation-size estimate immediately (every platform)
+        try { showContextEstimate(); } catch {}
+        // Claude: also pull the real 5h / 7d usage, which takes over the row
+        if (adapter.id === "claude") refreshClaudeUsage();
       }
     });
     pill.addEventListener("contextmenu", (e) => {
@@ -2080,18 +2072,10 @@ ${lines}`;
     return String(n);
   }
   function updateSessionCounter() {
-    // Find quota detail in any open floating button shadow root
-    const pill = document.querySelector("[data-pa-pill]");
-    if (!pill || !pill.shadowRoot) return;
-    const el = pill.shadowRoot.getElementById("pp-quota-detail");
-    const hdr = pill.shadowRoot.getElementById("pp-quota-platform");
-    const wrap = pill.shadowRoot.getElementById("pp-quota-wrap");
-    if (!el) return;
-    const total = sessionTokens.input + sessionTokens.output;
-    if (total === 0) return;
-    if (wrap) wrap.style.display = "";
-    if (hdr && !hdr.textContent.includes("session")) hdr.textContent = hdr.textContent || adapter.id;
-    el.textContent = `Session: ${fmtT(sessionTokens.input)} in · ${fmtT(sessionTokens.output)} out · ${fmtT(total)} total`;
+    // After a message completes the conversation grew and quota changed —
+    // refresh the always-on context estimate, and Claude's real usage.
+    try { showContextEstimate(); } catch {}
+    if (adapter.id === "claude") { try { refreshClaudeUsage(); } catch {} }
   }
 
   // Shadow-root element helpers
@@ -2106,6 +2090,41 @@ ${lines}`;
       fill: pill.shadowRoot.getElementById("pp-quota-bar-fill"),
       det:  pill.shadowRoot.getElementById("pp-quota-detail")
     };
+  }
+
+  // ── Context-window estimate — works on EVERY platform, no API needed ───────
+  // Reads the current conversation from the DOM and estimates token size
+  // against the model's context window. This is the always-available counter.
+  const CONTEXT_WINDOW = {
+    claude: 200000,
+    chatgpt: 128000,
+    gemini: 1000000,
+    perplexity: 127000,
+    generic: 128000
+  };
+  function showContextEstimate() {
+    const els = quotaEls();
+    if (!els?.wrap) return;
+    let turns = [];
+    try { turns = readConversationHistory(); } catch {}
+    const convoText = turns.map((t) => t.text).join("\n");
+    // Include the current draft in the input box, if any
+    let draft = "";
+    try { draft = adapter.getValue(adapter.findInput()) || ""; } catch {}
+    const tokens = estimateTokens(convoText + "\n" + draft);
+    const limit = CONTEXT_WINDOW[adapter.id] || 128000;
+    const pct = Math.min(100, Math.round((tokens / limit) * 100));
+    const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
+
+    els.wrap.style.display = "";
+    if (els.hdr) els.hdr.textContent = "Conversation size";
+    if (els.per) els.per.textContent = turns.length ? `· ${turns.length} msgs` : "";
+    if (els.bar) els.bar.style.display = "";
+    if (els.fill) { els.fill.style.width = pct + "%"; els.fill.style.background = color; }
+    if (els.det) {
+      els.det.textContent = `~${fmtT(tokens)} / ${fmtT(limit)} context tokens (${pct}%)`;
+      els.det.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
+    }
   }
 
   window.addEventListener("message", (e) => {
