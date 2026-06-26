@@ -81,6 +81,49 @@ function parseMetaResponse(raw) {
   } catch {}
   return { optimized: text };
 }
+const HANDOFF_META = `You are creating a HANDOFF PROMPT so a user can continue their work in a different AI assistant without losing context. This is used when one assistant hits its limit and the user wants to pick up seamlessly in another.
+
+Below is the user's conversation with {{sourceTool}}. Read the ENTIRE conversation carefully, then write a single, self-contained prompt the user can paste into {{targetTool}} to continue exactly where they left off.
+
+The handoff prompt MUST include, with clear headings:
+1. Goal — what the user is ultimately trying to achieve
+2. Context & key decisions — essential background, constraints, and preferences; preserve specifics VERBATIM (names, numbers, code, file paths, URLs, exact requirements)
+3. Progress so far — what has already been produced or decided
+4. Where it stopped — the exact point/state the conversation ended at
+5. Next steps — precisely what {{targetTool}} should do next to move the work forward
+
+Write it addressed TO the new assistant (e.g. "You are helping me with…"). Be thorough but not redundant. Never invent facts not present in the conversation. If code or data was shared, carry the important parts over verbatim.
+
+Output ONLY the handoff prompt — no preamble, no explanation, no markdown code fences around the whole thing.
+
+CONVERSATION WITH {{sourceTool}}:
+"""
+{{conversation}}
+"""`;
+function buildHandoffPrompt(conversation, sourceTool, targetTool) {
+  return HANDOFF_META
+    .replaceAll("{{sourceTool}}", sourceTool || "an AI assistant")
+    .replaceAll("{{targetTool}}", targetTool || "the new assistant")
+    .replaceAll("{{conversation}}", conversation);
+}
+async function runHandoffEngine(conversation, settings, sourceTool, targetTool) {
+  const provider = settings.apiProvider;
+  const key = settings.apiKeys[provider];
+  if (!key) {
+    return { kind: "error", message: `No API key set for ${provider}. Open Settings to add one — the handoff summary needs an API call.` };
+  }
+  const model = settings.apiModel || defaultModelFor(provider);
+  const prompt = buildHandoffPrompt(conversation, sourceTool, targetTool);
+  try {
+    const { content: raw, tokens } = provider === "openrouter" ? await callOpenRouter(prompt, key, model) : provider === "anthropic" ? await callAnthropic(prompt, key, model) : provider === "openai" ? await callOpenAI(prompt, key, model) : await callGoogle(prompt, key, model);
+    void accumulateTokens(tokens, sourceTool);
+    const text = (raw || "").trim();
+    if (!text) return { kind: "error", message: "The model returned an empty handoff." };
+    return { kind: "ok", handoff: text, tokens };
+  } catch (err) {
+    return { kind: "error", message: err instanceof Error ? err.message : String(err) };
+  }
+}
 async function runApiEngine(draft, settings, site, attachments = []) {
   const provider = settings.apiProvider;
   const key = settings.apiKeys[provider];
@@ -230,6 +273,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (t === "RESET_TOKENS") {
     setSettings({ tokensUsed: 0, tokensByPlatform: {}, tokenResetDate: null }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  if (t === "GENERATE_HANDOFF") {
+    (async () => {
+      const settings = await getSettings();
+      const { conversation, sourceTool, targetTool } = msg.payload || {};
+      const r = await runHandoffEngine(conversation, settings, sourceTool, targetTool);
+      sendResponse(r);
+    })().catch((err) => sendResponse({ kind: "error", message: err instanceof Error ? err.message : String(err) }));
     return true;
   }
   if (t === "STORE_PENDING_IMPORT") {

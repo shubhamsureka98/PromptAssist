@@ -1288,12 +1288,13 @@
             ? `<div class="export-warn">⚠ Could not read messages from this page. Try scrolling up to load older messages, then try again.</div>`
             : `<div class="export-stats">${turnCount} messages captured &middot; ~${fmtTokens(est)} tokens</div>`
           }
-          ${!noTurns ? `<p class="muted tiny" style="margin:4px 0 10px">Choose where to continue — PromptAssist will copy the conversation and open the tool:</p>
+          ${!noTurns ? `<p class="muted tiny" style="margin:4px 0 10px">Pick where to continue. PromptAssist reads the whole chat, writes a handoff prompt (goal, context, where it stopped, next steps), then opens that tool and pastes it in:</p>
           <div class="export-targets">${targetBtns}</div>
+          <p class="muted tiny" style="margin:8px 0 0;opacity:0.7">Uses one API call to summarise. Resuming work seamlessly when a model hits its limit.</p>
           <details style="margin-top:10px">
-            <summary class="refine-toggle" style="font-size:11.5px">Preview / copy manually</summary>
+            <summary class="refine-toggle" style="font-size:11.5px">Or copy the raw transcript</summary>
             <textarea class="text edit" spellcheck="false" id="pp-export-ta" style="min-height:100px;font-size:11px;font-family:monospace;margin-top:6px">${esc(preview)}</textarea>
-            <button data-action="copy-export" class="primary" style="margin-top:6px;width:100%">Copy to clipboard</button>
+            <button data-action="copy-export" class="primary" style="margin-top:6px;width:100%">Copy raw transcript</button>
           </details>` : ""}
         </div>
         <div class="footer">
@@ -1388,15 +1389,37 @@
           const targetLabel = btn.dataset.targetLabel;
           const targetUrl = btn.dataset.targetUrl;
           const targetId = btn.dataset.targetId;
-          const md = buildExportMarkdown(o.turns || [], targetLabel);
-          btn.textContent = "Saving…";
-          btn.disabled = true;
-          // Store for auto-paste when target tab loads
-          await chrome.runtime.sendMessage({ type: "STORE_PENDING_IMPORT", payload: { text: md, targetId } }).catch(() => {});
-          // Also copy to clipboard as fallback
-          await navigator.clipboard.writeText(md).catch(() => {});
-          btn.textContent = "✓ Opening — will auto-paste";
-          setTimeout(() => { window.open(targetUrl, "_blank", "noopener"); }, 300);
+          const turns = o.turns || [];
+          const allBtns = shadow.querySelectorAll('[data-action="export-to"]');
+          allBtns.forEach((b) => { b.disabled = true; });
+          const origLabel = btn.textContent;
+          btn.textContent = "✦ Summarising conversation…";
+
+          // Ask the API to build a smart handoff prompt (summary + state + next steps)
+          let handoff = null;
+          try {
+            const conversation = buildConversationText(turns);
+            const res = await chrome.runtime.sendMessage({
+              type: "GENERATE_HANDOFF",
+              payload: { conversation, sourceTool: adapter.id, targetTool: targetLabel }
+            });
+            if (res && res.kind === "ok" && res.handoff) handoff = res.handoff;
+            else if (res && res.kind === "error") {
+              // Show the error, offer raw fallback
+              btn.textContent = "⚠ " + (res.message || "Summary failed");
+              setTimeout(() => { btn.textContent = origLabel + " (raw export)"; allBtns.forEach((b) => { b.disabled = false; }); }, 200);
+              const fallback = buildExportMarkdown(turns, targetLabel);
+              await chrome.runtime.sendMessage({ type: "STORE_PENDING_IMPORT", payload: { text: fallback, targetId } }).catch(() => {});
+              await navigator.clipboard.writeText(fallback).catch(() => {});
+              return;
+            }
+          } catch {}
+
+          const text = handoff || buildExportMarkdown(turns, targetLabel);
+          await chrome.runtime.sendMessage({ type: "STORE_PENDING_IMPORT", payload: { text, targetId } }).catch(() => {});
+          await navigator.clipboard.writeText(text).catch(() => {});
+          btn.textContent = "✓ Handoff ready — opening " + targetLabel;
+          setTimeout(() => { window.open(targetUrl, "_blank", "noopener"); }, 350);
         });
       });
     }
@@ -1867,6 +1890,10 @@ USER SETTINGS:
     }
     md += `\n_Total turns: ${turns.length}_\n`;
     return md;
+  }
+  // Plain transcript for sending to the summariser API
+  function buildConversationText(turns) {
+    return turns.map((t) => `${t.role}: ${t.text}`).join("\n\n");
   }
   const EXPORT_TARGETS = [
     { id: "claude", label: "Claude", url: "https://claude.ai/new", icon: "✦" },
