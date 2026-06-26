@@ -1,0 +1,47 @@
+<svg viewBox="0 0 720 520" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="520" fill="#0d0d0d" rx="12"/>
+  <rect x="0" y="0" width="720" height="42" fill="#1a1a1a" rx="12"/>
+  <rect x="0" y="28" width="720" height="14" fill="#1a1a1a"/>
+  <circle cx="22" cy="21" r="5" fill="#ff5f57"/>
+  <circle cx="40" cy="21" r="5" fill="#ffbd2e"/>
+  <circle cx="58" cy="21" r="5" fill="#28c840"/>
+  <rect x="200" y="13" width="320" height="18" rx="9" fill="#2a2a2a"/>
+  <text x="360" y="25" text-anchor="middle" fill="#666" font-family="-apple-system,sans-serif" font-size="11">chatgpt.com</text>
+
+  <!-- export overlay panel -->
+  <rect x="150" y="62" width="460" height="404" rx="14" fill="#1c1c1e" stroke="#2a2a2a" stroke-width="1"/>
+  <rect x="150" y="62" width="460" height="3" rx="2" fill="#4f46e5"/>
+  <rect x="466" y="74" width="128" height="20" rx="10" fill="#1e1b4b"/>
+  <text x="530" y="88" text-anchor="middle" fill="#a5b4fc" font-family="-apple-system,sans-serif" font-size="10" font-weight="600">✦ Continue elsewhere</text>
+
+  <text x="170" y="92" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="13" font-weight="600">14 messages captured · ~8.2K tokens</text>
+  <text x="170" y="116" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Reads the whole chat, writes a handoff prompt (goal, context,</text>
+  <text x="170" y="132" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">where it stopped, next steps), then opens that tool and pastes it.</text>
+
+  <!-- target buttons -->
+  <rect x="170" y="148" width="420" height="40" rx="9" fill="#1a1830" stroke="#4f46e5" stroke-width="1.2"/>
+  <text x="186" y="173" fill="#a5b4fc" font-family="-apple-system,sans-serif" font-size="13" font-weight="600">✦  Claude</text>
+
+  <rect x="170" y="196" width="420" height="40" rx="9" fill="#16182a" stroke="#3a3a52" stroke-width="1"/>
+  <text x="186" y="221" fill="#c7d2fe" font-family="-apple-system,sans-serif" font-size="13" font-weight="600">✨  Gemini</text>
+
+  <rect x="170" y="244" width="420" height="40" rx="9" fill="#16182a" stroke="#3a3a52" stroke-width="1"/>
+  <text x="186" y="269" fill="#c7d2fe" font-family="-apple-system,sans-serif" font-size="13" font-weight="600">🔍  Perplexity</text>
+
+  <text x="170" y="306" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="10.5" font-style="italic">Uses one API call to summarise. Resume seamlessly when a model hits its limit.</text>
+
+  <!-- preview disclosure -->
+  <line x1="170" y1="322" x2="590" y2="322" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="170" y="344" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">› Or copy the raw transcript</text>
+
+  <!-- generated handoff preview chip -->
+  <rect x="170" y="356" width="420" height="74" rx="8" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="186" y="376" fill="#22c55e" font-family="-apple-system,sans-serif" font-size="10.5" font-weight="600">✓ Handoff ready</text>
+  <text x="186" y="394" fill="#c7d2fe" font-family="-apple-system,sans-serif" font-size="10.5">You are helping me build a multi-LLM knowledge base. Goal: …</text>
+  <text x="186" y="410" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="10.5">Progress so far: schema drafted. Where it stopped: relevancy</text>
+  <text x="186" y="424" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="10.5">scoring. Next steps: design the ingestion pipeline for emails…</text>
+
+  <text x="570" y="452" text-anchor="end" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">Close</text>
+
+  <text x="380" y="494" text-anchor="middle" fill="#444" font-family="-apple-system,sans-serif" font-size="10">Context-aware handoff — never lose your place when switching models</text>
+</svg>

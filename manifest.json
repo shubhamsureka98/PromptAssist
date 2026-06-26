@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PromptAssist",
-  "version": "0.7.1",
+  "version": "0.9.0",
   "description": "Optimize your prompts before sending to Claude, ChatGPT, Perplexity, Gemini, and other LLM tools.",
   "permissions": ["storage", "activeTab", "scripting", "sessions"],
   "web_accessible_resources": [

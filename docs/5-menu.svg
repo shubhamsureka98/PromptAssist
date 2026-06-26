@@ -1,44 +1,70 @@
-<svg viewBox="0 0 720 500" xmlns="http://www.w3.org/2000/svg">
-  <rect width="720" height="500" fill="#0d0d0d" rx="12"/>
+<svg viewBox="0 0 720 520" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="520" fill="#0d0d0d" rx="12"/>
   <rect x="0" y="0" width="720" height="42" fill="#1a1a1a" rx="12"/>
   <rect x="0" y="28" width="720" height="14" fill="#1a1a1a"/>
   <circle cx="22" cy="21" r="5" fill="#ff5f57"/>
   <circle cx="40" cy="21" r="5" fill="#ffbd2e"/>
   <circle cx="58" cy="21" r="5" fill="#28c840"/>
   <rect x="200" y="13" width="320" height="18" rx="9" fill="#2a2a2a"/>
-  <text x="360" y="25" text-anchor="middle" fill="#666" font-family="-apple-system,sans-serif" font-size="11">chatgpt.com</text>
-  <rect x="30" y="58" width="460" height="28" rx="6" fill="#1e1e1e"/>
-  <text x="46" y="76" fill="#555" font-family="-apple-system,sans-serif" font-size="11">What's the best way to structure a product roadmap?</text>
-  <rect x="30" y="96" width="520" height="44" rx="6" fill="#2a2a2a"/>
-  <text x="46" y="114" fill="#555" font-family="-apple-system,sans-serif" font-size="11">A strong product roadmap balances strategic vision with execution detail...</text>
-  <text x="46" y="130" fill="#444" font-family="-apple-system,sans-serif" font-size="11">Organize by Now / Next / Later themes, with each item tied to an OKR...</text>
-  <rect x="30" y="400" width="570" height="74" rx="12" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
-  <text x="50" y="432" fill="#777" font-family="-apple-system,sans-serif" font-size="13">Message ChatGPT</text>
-  <circle cx="668" cy="437" r="22" fill="#4f46e5"/>
-  <text x="668" y="444" text-anchor="middle" fill="white" font-family="-apple-system,sans-serif" font-size="18">✦</text>
-  <rect x="398" y="158" width="278" height="228" rx="12" fill="#1c1c1e" stroke="#2a2a2a" stroke-width="1"/>
-  <rect x="398" y="158" width="278" height="3" rx="2" fill="#4f46e5"/>
-  <text x="416" y="180" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="13" font-weight="500">✦  Quick Settings</text>
-  <line x1="398" y1="192" x2="676" y2="192" stroke="#2a2a2a" stroke-width="1"/>
-  <text x="416" y="212" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Mode</text>
-  <rect x="484" y="199" width="174" height="24" rx="6" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
-  <text x="496" y="215" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11">API rewrite</text>
-  <text x="646" y="215" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">▾</text>
-  <text x="416" y="242" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Model</text>
-  <rect x="484" y="229" width="174" height="24" rx="6" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
-  <text x="496" y="245" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11">Claude Haiku 4.5</text>
-  <text x="646" y="245" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">▾</text>
-  <text x="416" y="272" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Style</text>
-  <rect x="484" y="259" width="174" height="24" rx="6" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
-  <text x="496" y="275" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11">Auto</text>
-  <text x="646" y="275" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">▾</text>
-  <text x="416" y="302" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Length</text>
-  <rect x="484" y="289" width="174" height="24" rx="6" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
-  <text x="496" y="305" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11">Standard</text>
-  <text x="646" y="305" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">▾</text>
-  <line x1="398" y1="322" x2="676" y2="322" stroke="#2a2a2a" stroke-width="1"/>
-  <text x="416" y="342" fill="#818cf8" font-family="-apple-system,sans-serif" font-size="11">All settings →</text>
-  <text x="648" y="342" text-anchor="end" fill="#4b5563" font-family="-apple-system,sans-serif" font-size="10">⌘⇧O</text>
-  <line x1="668" y1="415" x2="640" y2="386" stroke="#4f46e5" stroke-width="1.5" stroke-dasharray="3,3"/>
-  <text x="576" y="398" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="10">right-click to open</text>
+  <text x="360" y="25" text-anchor="middle" fill="#666" font-family="-apple-system,sans-serif" font-size="11">claude.ai</text>
+
+  <text x="300" y="120" text-anchor="middle" fill="#3a3a3a" font-family="Georgia,serif" font-size="30">Good afternoon</text>
+
+  <!-- input box -->
+  <rect x="30" y="430" width="560" height="64" rx="14" fill="#1a1a1a" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="50" y="466" fill="#666" font-family="-apple-system,sans-serif" font-size="13">Message Claude…</text>
+
+  <!-- floating Optimize pill -->
+  <rect x="430" y="58" width="150" height="30" rx="8" fill="#1f1d3a" stroke="#4f46e5" stroke-width="1"/>
+  <circle cx="452" cy="73" r="3" fill="#a5b4fc"/>
+  <text x="462" y="77" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="12" font-weight="600">Optimize</text>
+  <text x="566" y="77" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="9">▾</text>
+
+  <!-- always-visible usage badge under pill -->
+  <rect x="430" y="94" width="150" height="40" rx="9" fill="#14161c" stroke="#2c2c34" stroke-width="1"/>
+  <text x="442" y="110" fill="#c7d2fe" font-family="-apple-system,sans-serif" font-size="10" font-weight="600">Claude limits</text>
+  <text x="568" y="110" text-anchor="end" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="10">12%</text>
+  <rect x="442" y="118" width="126" height="4" rx="2" fill="#2a2a2a"/>
+  <rect x="442" y="118" width="15" height="4" rx="2" fill="#22c55e"/>
+
+  <!-- Quick Settings menu -->
+  <rect x="398" y="146" width="290" height="262" rx="12" fill="#1c1c1e" stroke="#2a2a2a" stroke-width="1"/>
+  <rect x="398" y="146" width="290" height="3" rx="2" fill="#4f46e5"/>
+
+  <text x="416" y="172" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Mode</text>
+  <rect x="494" y="159" width="176" height="24" rx="6" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="506" y="175" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11">API rewrite</text>
+  <text x="658" y="175" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">▾</text>
+
+  <text x="416" y="202" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Model</text>
+  <rect x="494" y="189" width="176" height="24" rx="6" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="506" y="205" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11">Claude Haiku 4.5</text>
+  <text x="658" y="205" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">▾</text>
+
+  <text x="416" y="232" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="11">Style</text>
+  <rect x="494" y="219" width="176" height="24" rx="6" fill="#111" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="506" y="235" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11">Auto</text>
+  <text x="658" y="235" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">▾</text>
+
+  <!-- usage section in menu -->
+  <line x1="398" y1="256" x2="688" y2="256" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="416" y="278" fill="#e5e7eb" font-family="-apple-system,sans-serif" font-size="11" font-weight="600">Claude limits</text>
+  <text x="672" y="278" text-anchor="end" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="10">live</text>
+  <rect x="416" y="286" width="256" height="5" rx="2.5" fill="#2a2a2a"/>
+  <rect x="416" y="286" width="31" height="5" rx="2.5" fill="#22c55e"/>
+  <text x="416" y="306" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="10.5">5h 12% (resets 2h 14m)  ·  7d 4% (resets 5d)</text>
+
+  <line x1="398" y1="322" x2="688" y2="322" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="416" y="344" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="11">Reset position</text>
+  <text x="520" y="344" fill="#818cf8" font-family="-apple-system,sans-serif" font-size="11" font-weight="600">Export chat</text>
+  <text x="612" y="344" fill="#818cf8" font-family="-apple-system,sans-serif" font-size="11" font-weight="600">All settings</text>
+
+  <!-- PromptAssist API usage (secondary) -->
+  <line x1="398" y1="360" x2="688" y2="360" stroke="#222" stroke-width="1"/>
+  <text x="416" y="380" fill="#9ca3af" font-family="-apple-system,sans-serif" font-size="10.5">PromptAssist API usage</text>
+  <text x="672" y="380" text-anchor="end" fill="#6b7280" font-family="-apple-system,sans-serif" font-size="10">3%</text>
+  <rect x="416" y="388" width="256" height="4" rx="2" fill="#2a2a2a"/>
+  <rect x="416" y="388" width="8" height="4" rx="2" fill="#4f46e5"/>
+
+  <text x="510" y="510" text-anchor="middle" fill="#444" font-family="-apple-system,sans-serif" font-size="10">Live usage badge — always visible, no click needed</text>
 </svg>
