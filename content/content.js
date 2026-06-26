@@ -2198,7 +2198,7 @@ ${lines}`;
 
   // ── Export: auto-paste into target platform ───────────────────────────────
   async function consumePendingImport() {
-    if (!isContextValid()) return;
+    if (!chrome.runtime?.id) return;
     try {
       const pi = await chrome.runtime.sendMessage({ type: "GET_PENDING_IMPORT" });
       if (!pi || pi.targetId !== adapter.id) return;
