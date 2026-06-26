@@ -41,6 +41,15 @@
         interceptJSON(response.clone(), handleGeminiResponse);
         return response;
       }
+
+      // Passively capture claude.ai's own /usage responses
+      const uMatch = url.match(CLAUDE_USAGE);
+      if (uMatch && response.ok) {
+        const orgId = (url.match(/organizations\/([^/?#]+)\/usage/) || [])[1] || null;
+        response.clone().json().then((data) => {
+          POST({ type: "claude_usage_data", data, orgId });
+        }).catch(() => {});
+      }
     } catch {}
 
     return response;
@@ -116,4 +125,61 @@
         totalTokens:      usage.totalTokenCount        || 0 });
     }
   }
+
+  // ── Active Claude usage fetch (page context = full credentials/CSRF) ───────
+  function getCookie(name) {
+    const m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  async function getClaudeOrgId() {
+    // 1. lastActiveOrg cookie (most reliable, what claude.ai itself uses)
+    const cookieOrg = getCookie("lastActiveOrg");
+    if (cookieOrg) return cookieOrg;
+    // 2. /api/organizations
+    try {
+      const r = await origFetch("/api/organizations", { credentials: "include", headers: { accept: "application/json" } });
+      if (r.ok) {
+        const orgs = await r.json();
+        const list = Array.isArray(orgs) ? orgs : [orgs];
+        // prefer an org that has chat capability
+        const best = list.find((o) => o?.uuid) || list[0];
+        if (best?.uuid) return best.uuid;
+      }
+    } catch {}
+    return null;
+  }
+
+  async function fetchClaudeUsageActive() {
+    if (location.hostname !== "claude.ai" && !location.hostname.endsWith(".claude.ai")) return;
+    let orgId = null;
+    try {
+      orgId = await getClaudeOrgId();
+      if (!orgId) { POST({ type: "claude_usage_error", error: "Could not find your organization ID (not logged in?)." }); return; }
+
+      const res = await origFetch(`/api/organizations/${orgId}/usage`, {
+        credentials: "include",
+        headers: { accept: "application/json" }
+      });
+      if (!res.ok) {
+        POST({ type: "claude_usage_error", error: `Usage API returned ${res.status}.`, orgId });
+        return;
+      }
+      const data = await res.json();
+      POST({ type: "claude_usage_data", data, orgId });
+    } catch (e) {
+      POST({ type: "claude_usage_error", error: (e && e.message) || String(e), orgId });
+    }
+  }
+
+  // Respond to explicit refresh requests from the content script
+  window.addEventListener("message", (e) => {
+    if (e.source !== window) return;
+    if (e.data?.source === "PromptAssistContent" && e.data?.type === "refresh_claude_usage") {
+      void fetchClaudeUsageActive();
+    }
+  });
+
+  // Initial fetch shortly after load
+  setTimeout(() => void fetchClaudeUsageActive(), 600);
 })();

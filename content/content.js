@@ -963,11 +963,17 @@
       e.stopPropagation();
       menu.classList.toggle("open");
       if (menu.classList.contains("open")) {
-        try { renderPlatformQuota(adapter.readPlatformQuota?.()); } catch {}
-        // Re-fetch Claude usage each time menu opens (fresh data)
         if (adapter.id === "claude") {
-          _claudeUsageFetched = false;
-          void waitForPillThenFetch();
+          // Show loading + ask the page-context bridge for fresh usage
+          const els = quotaEls();
+          if (els?.wrap) {
+            els.wrap.style.display = "";
+            if (els.hdr) els.hdr.textContent = "Claude usage";
+            if (els.det && !els.det.textContent) { els.det.textContent = "Loading…"; els.det.style.color = "#6b7280"; }
+          }
+          refreshClaudeUsage();
+        } else {
+          try { renderPlatformQuota(adapter.readPlatformQuota?.()); } catch {}
         }
       }
     });
@@ -2088,6 +2094,20 @@ ${lines}`;
     el.textContent = `Session: ${fmtT(sessionTokens.input)} in · ${fmtT(sessionTokens.output)} out · ${fmtT(total)} total`;
   }
 
+  // Shadow-root element helpers
+  function quotaEls() {
+    const pill = document.querySelector("[data-pa-pill]");
+    if (!pill?.shadowRoot) return null;
+    return {
+      wrap: pill.shadowRoot.getElementById("pp-quota-wrap"),
+      hdr:  pill.shadowRoot.getElementById("pp-quota-platform"),
+      per:  pill.shadowRoot.getElementById("pp-quota-period"),
+      bar:  pill.shadowRoot.getElementById("pp-quota-bar-track"),
+      fill: pill.shadowRoot.getElementById("pp-quota-bar-fill"),
+      det:  pill.shadowRoot.getElementById("pp-quota-detail")
+    };
+  }
+
   window.addEventListener("message", (e) => {
     if (e.data?.source !== "PromptAssistBridge") return;
     const d = e.data;
@@ -2096,8 +2116,6 @@ ${lines}`;
       sessionTokens.input += d.inputTokens || 0;
       sessionTokens.output += d.outputTokens || 0;
       updateSessionCounter();
-      // Fetch real Claude usage bars on first response
-      if (d.orgId) fetchClaudeUsage(d.orgId);
     }
     if (d.type === "claude_message_delta") {
       sessionTokens.output += d.outputTokens || 0;
@@ -2105,6 +2123,19 @@ ${lines}`;
     }
     if (d.type === "claude_message_limit") {
       showClaudeMessageLimit(d.limit);
+    }
+    if (d.type === "claude_usage_data") {
+      showClaudeUsageBars(d.data);
+    }
+    if (d.type === "claude_usage_error") {
+      const els = quotaEls();
+      if (els?.wrap && els.det) {
+        els.wrap.style.display = "";
+        if (els.hdr) els.hdr.textContent = "Claude usage";
+        if (els.bar) els.bar.style.display = "none";
+        els.det.textContent = "Couldn't load usage: " + (d.error || "unknown error");
+        els.det.style.color = "#f59e0b";
+      }
     }
     if (d.type === "gpt_usage") {
       sessionTokens.input = Math.max(sessionTokens.input, d.promptTokens || 0);
@@ -2118,115 +2149,129 @@ ${lines}`;
     }
   });
 
-  // ── Claude /usage API (real 5h + 7d limits) ───────────────────────────────
-  let _claudeUsageFetched = false;
-  async function fetchClaudeUsage(orgId) {
-    if (_claudeUsageFetched) return;
-    _claudeUsageFetched = true;
-    try {
-      const res = await fetch(`/api/organizations/${orgId}/usage`, { credentials: "include" });
-      if (!res.ok) return;
-      const data = await res.json();
-      showClaudeUsageBars(data, orgId);
-    } catch {}
+  function refreshClaudeUsage() {
+    window.postMessage({ source: "PromptAssistContent", type: "refresh_claude_usage" }, "*");
   }
-  // Proactively fetch usage on page load — don't wait for a message to be sent
-  async function fetchClaudeUsageOnLoad() {
-    if (adapter.id !== "claude") return;
-    try {
-      // Show loading state immediately
-      const pill = document.querySelector("[data-pa-pill]");
-      if (pill?.shadowRoot) {
-        const wrap = pill.shadowRoot.getElementById("pp-quota-wrap");
-        const hdr  = pill.shadowRoot.getElementById("pp-quota-platform");
-        const det  = pill.shadowRoot.getElementById("pp-quota-detail");
-        if (wrap) wrap.style.display = "";
-        if (hdr)  hdr.textContent = "Claude usage";
-        if (det)  { det.textContent = "Loading…"; det.style.color = "#6b7280"; }
+
+  // ── Adaptive usage renderer — handles whatever shape Claude returns ────────
+  // Recursively searches an object for {used/limit} or {percent} + reset time.
+  function findUsageWindows(obj, depth = 0, found = []) {
+    if (!obj || typeof obj !== "object" || depth > 4) return found;
+    const keys = Object.keys(obj);
+    // Detect a usage-window-like object
+    const hasPct = "utilization" in obj || "percent_used" in obj || "percentage" in obj || "percent" in obj;
+    const hasUsedLimit = ("used" in obj || "count" in obj) && ("limit" in obj || "max" in obj || "total" in obj);
+    const resetKey = keys.find((k) => /reset|expires|refresh|window_end|ends_at/i.test(k));
+    if (hasPct || hasUsedLimit) {
+      let pct = null;
+      const rawPct = obj.utilization ?? obj.percent_used ?? obj.percentage ?? obj.percent;
+      if (rawPct != null) pct = rawPct <= 1 ? Math.round(rawPct * 100) : Math.round(rawPct);
+      else {
+        const used = obj.used ?? obj.count;
+        const lim = obj.limit ?? obj.max ?? obj.total;
+        if (lim > 0) pct = Math.round((used / lim) * 100);
       }
-      const orgsRes = await fetch("/api/organizations", { credentials: "include" });
-      if (!orgsRes.ok) return;
-      const orgs = await orgsRes.json();
-      const orgId = (Array.isArray(orgs) ? orgs[0] : orgs)?.uuid || (Array.isArray(orgs) ? orgs[0] : orgs)?.id;
-      if (!orgId) return;
-      await fetchClaudeUsage(orgId);
-    } catch {}
-  }
-  // Run after pill is mounted; retry up to 5s
-  async function waitForPillThenFetch() {
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      if (document.querySelector("[data-pa-pill]")) {
-        await fetchClaudeUsageOnLoad();
-        return;
+      if (pct != null) {
+        found.push({ pct, resetsAt: resetKey ? obj[resetKey] : null, used: obj.used ?? obj.count, limit: obj.limit ?? obj.max ?? obj.total });
+        return found; // don't recurse into a matched window
       }
-      await new Promise(r => setTimeout(r, 300));
     }
+    for (const k of keys) {
+      const v = obj[k];
+      if (v && typeof v === "object") findUsageWindows(v, depth + 1, found);
+    }
+    return found;
   }
-  setTimeout(() => void waitForPillThenFetch(), 800);
-  function showClaudeUsageBars(data, orgId) {
-    const pill = document.querySelector("[data-pa-pill]");
-    if (!pill?.shadowRoot) return;
-    const wrap = pill.shadowRoot.getElementById("pp-quota-wrap");
-    const hdr  = pill.shadowRoot.getElementById("pp-quota-platform");
-    const per  = pill.shadowRoot.getElementById("pp-quota-period");
-    const bar  = pill.shadowRoot.getElementById("pp-quota-bar-track");
-    const fill = pill.shadowRoot.getElementById("pp-quota-bar-fill");
-    const det  = pill.shadowRoot.getElementById("pp-quota-detail");
-    if (!wrap) return;
-    wrap.style.display = "";
-    if (hdr) hdr.textContent = "Claude usage";
 
-    const d5  = data["5h"]  || data["5_hour"]  || null;
-    const d7  = data["7d"]  || data["7_day"]   || null;
-    const pct5 = d5  ? Math.round((d5.percent_used  || 0) * 100) : null;
-    const pct7 = d7  ? Math.round((d7.percent_used  || 0) * 100) : null;
+  function showClaudeUsageBars(data) {
+    const els = quotaEls();
+    if (!els?.wrap) return;
+    els.wrap.style.display = "";
+    if (els.hdr) els.hdr.textContent = "Claude usage";
+    if (els.per) els.per.textContent = "";
 
-    // Use the higher of the two as the primary bar
-    const pct = pct5 ?? pct7 ?? 0;
-    const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
-    if (bar) bar.style.display = "";
-    if (fill) { fill.style.width = pct + "%"; fill.style.background = color; }
-
+    // Try the documented 5h / 7d shape first
+    const d5 = data?.["5h"] || data?.["5_hour"] || data?.five_hour || null;
+    const d7 = data?.["7d"] || data?.["7_day"] || data?.seven_day || null;
     const parts = [];
+    let primaryPct = null;
+
+    const pctOf = (w) => {
+      if (!w) return null;
+      const raw = w.utilization ?? w.percent_used ?? w.percentage ?? w.percent;
+      if (raw != null) return raw <= 1 ? Math.round(raw * 100) : Math.round(raw);
+      if ((w.limit ?? w.max) > 0) return Math.round(((w.used ?? w.count ?? 0) / (w.limit ?? w.max)) * 100);
+      return null;
+    };
+
+    const pct5 = pctOf(d5);
+    const pct7 = pctOf(d7);
     if (pct5 != null) {
-      const rem5 = formatTimeUntil(d5.resets_at);
-      parts.push(`5h window: ${pct5}% used${rem5 ? ` · resets in ${rem5}` : ""}`);
+      const r = formatTimeUntil(d5.resets_at || d5.resets || d5.expires_at);
+      parts.push(`5h: ${pct5}% used${r ? ` · resets in ${r}` : ""}`);
+      primaryPct = pct5;
     }
     if (pct7 != null) {
-      const rem7 = formatTimeUntil(d7.resets_at);
-      parts.push(`7d window: ${pct7}% used${rem7 ? ` · resets in ${rem7}` : ""}`);
+      const r = formatTimeUntil(d7.resets_at || d7.resets || d7.expires_at);
+      parts.push(`7d: ${pct7}% used${r ? ` · resets in ${r}` : ""}`);
+      primaryPct = primaryPct == null ? pct7 : Math.max(primaryPct, pct7);
     }
-    if (per) per.textContent = "";
-    if (det) {
-      det.textContent = parts.join("  ·  ") || "Usage data loaded";
-      det.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
+
+    // Fallback: adaptive search for any usage windows
+    if (parts.length === 0) {
+      const windows = findUsageWindows(data);
+      for (const w of windows.slice(0, 3)) {
+        const r = formatTimeUntil(w.resetsAt);
+        const detail = w.used != null && w.limit != null ? `${w.used}/${w.limit}` : `${w.pct}%`;
+        parts.push(`${detail} used${r ? ` · resets in ${r}` : ""}`);
+        primaryPct = primaryPct == null ? w.pct : Math.max(primaryPct, w.pct);
+      }
+    }
+
+    if (parts.length === 0) {
+      // Last resort: show top-level keys so we can adapt next iteration
+      if (els.bar) els.bar.style.display = "none";
+      if (els.det) {
+        const keys = data && typeof data === "object" ? Object.keys(data).slice(0, 6).join(", ") : typeof data;
+        els.det.textContent = `Usage loaded (fields: ${keys})`;
+        els.det.style.color = "#6b7280";
+      }
+      return;
+    }
+
+    const pct = primaryPct ?? 0;
+    const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
+    if (els.bar) els.bar.style.display = "";
+    if (els.fill) { els.fill.style.width = pct + "%"; els.fill.style.background = color; }
+    if (els.det) {
+      els.det.textContent = parts.join("   ·   ");
+      els.det.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
     }
   }
+
   function showClaudeMessageLimit(limit) {
     if (!limit) return;
-    const pill = document.querySelector("[data-pa-pill]");
-    if (!pill?.shadowRoot) return;
-    const det = pill.shadowRoot.getElementById("pp-quota-detail");
-    const fill = pill.shadowRoot.getElementById("pp-quota-bar-fill");
-    const bar = pill.shadowRoot.getElementById("pp-quota-bar-track");
-    if (!det) return;
-    if (limit.type === "approaching_limit" && limit.messages_remaining != null) {
-      const n = limit.messages_remaining;
-      if (det) det.textContent = `⚠ ${n} message${n === 1 ? "" : "s"} remaining this session`;
-      if (det) det.style.color = n <= 3 ? "#ef4444" : "#f59e0b";
-      if (bar) bar.style.display = "";
-      const pct = Math.max(5, Math.round((n / 10) * 100)); // rough estimate
-      if (fill) { fill.style.width = (100 - pct) + "%"; fill.style.background = n <= 3 ? "#ef4444" : "#f59e0b"; }
-    } else if (limit.type === "at_limit" || limit.type === "hit_limit") {
-      if (det) { det.textContent = "🚫 Message limit reached for this session"; det.style.color = "#ef4444"; }
-      if (bar) bar.style.display = "";
-      if (fill) { fill.style.width = "100%"; fill.style.background = "#ef4444"; }
+    const els = quotaEls();
+    if (!els?.det) return;
+    els.wrap.style.display = "";
+    if (els.hdr) els.hdr.textContent = "Claude usage";
+    if (limit.type === "approaching_limit" && limit.remaining != null) {
+      const n = limit.remaining;
+      els.det.textContent = `⚠ ${n} message${n === 1 ? "" : "s"} remaining this session`;
+      els.det.style.color = n <= 3 ? "#ef4444" : "#f59e0b";
+    } else if (limit.type === "exceeded_limit" || limit.type === "at_limit") {
+      els.det.textContent = "🚫 Message limit reached";
+      els.det.style.color = "#ef4444";
+      if (els.bar) els.bar.style.display = "";
+      if (els.fill) { els.fill.style.width = "100%"; els.fill.style.background = "#ef4444"; }
     }
   }
+
   function formatTimeUntil(isoStr) {
     if (!isoStr) return null;
-    const diff = new Date(isoStr) - Date.now();
+    const t = typeof isoStr === "number" ? (isoStr < 1e12 ? isoStr * 1000 : isoStr) : Date.parse(isoStr);
+    if (isNaN(t)) return null;
+    const diff = t - Date.now();
     if (diff <= 0) return null;
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
