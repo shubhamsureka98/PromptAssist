@@ -715,6 +715,24 @@
       .btn-chev:hover { background: rgba(99, 102, 241, 0.4); opacity: 1; }
       .dot { width: 5px; height: 5px; border-radius: 50%; background: #a5b4fc; flex: none; }
 
+      .usage-badge {
+        margin-top: 6px;
+        background: rgba(20, 22, 28, 0.92);
+        border: 1px solid rgba(255,255,255,0.10);
+        border-radius: 9px;
+        padding: 6px 9px;
+        cursor: pointer;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+        min-width: 150px;
+      }
+      .usage-badge:hover { border-color: rgba(165,180,252,0.4); }
+      .usage-badge-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+      .usage-badge-label { font-size: 10.5px; font-weight: 600; color: #c7d2fe; letter-spacing: 0.01em; }
+      .usage-badge-val { font-size: 10.5px; color: #9ca3af; font-variant-numeric: tabular-nums; }
+      .usage-badge-track { height: 4px; background: rgba(255,255,255,0.10); border-radius: 2px; overflow: hidden; }
+      .usage-badge-fill { height: 100%; width: 0%; background: #22c55e; border-radius: 2px; transition: width 0.4s ease, background 0.3s ease; }
+
       .menu {
         position: absolute;
         top: calc(100% + 6px);
@@ -808,6 +826,13 @@
         <button class="btn-chev" type="button" aria-haspopup="true" aria-label="PromptAssist menu" title="Settings">
           <span aria-hidden="true">&#x25BE;</span>
         </button>
+      </div>
+      <div class="usage-badge" id="pp-usage-badge" style="display:none" title="Click to refresh">
+        <div class="usage-badge-row">
+          <span class="usage-badge-label" id="pp-badge-label">Usage</span>
+          <span class="usage-badge-val" id="pp-badge-val"></span>
+        </div>
+        <div class="usage-badge-track"><div class="usage-badge-fill" id="pp-badge-fill"></div></div>
       </div>
       <div class="menu" role="menu" aria-label="Quick settings">
         <div class="row">
@@ -996,6 +1021,14 @@
       menu.classList.remove("open");
       void showExportOverlay();
     });
+    const usageBadge = shadow.getElementById("pp-usage-badge");
+    usageBadge?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try { refreshUsageDisplay(); } catch {}
+    });
+    // Populate the always-visible badge as soon as the pill is mounted
+    setTimeout(() => { try { showContextEstimate(); refreshUsageDisplay(); } catch {} }, 400);
     const onDocPointer = (e) => {
       if (!menu.classList.contains("open")) return;
       const path = e.composedPath();
@@ -2064,6 +2097,16 @@ ${lines}`;
     injectBridge();
   }
 
+  // Keep the always-visible usage badge fresh.
+  function refreshUsageDisplay() {
+    try {
+      if (adapter.id === "claude") refreshClaudeUsage(); // real 5h/7d via bridge
+      else showContextEstimate();
+    } catch {}
+  }
+  setTimeout(refreshUsageDisplay, 1800);
+  setInterval(refreshUsageDisplay, 8000);
+
   // ── Session token counter (bridge postMessage → floating button) ──────────
   const sessionTokens = { input: 0, output: 0, platform: adapter.id };
   function fmtT(n) {
@@ -2092,6 +2135,47 @@ ${lines}`;
     };
   }
 
+  function badgeEls() {
+    const pill = document.querySelector("[data-pa-pill]");
+    if (!pill?.shadowRoot) return null;
+    return {
+      wrap:  pill.shadowRoot.getElementById("pp-usage-badge"),
+      label: pill.shadowRoot.getElementById("pp-badge-label"),
+      val:   pill.shadowRoot.getElementById("pp-badge-val"),
+      fill:  pill.shadowRoot.getElementById("pp-badge-fill")
+    };
+  }
+
+  // Single render path → updates BOTH the always-visible badge AND the menu row.
+  // { header, val, detail, pct (0-100 or null), color, showBar }
+  function setUsageDisplay(o) {
+    const color = o.color || (o.pct >= 90 ? "#ef4444" : o.pct >= 70 ? "#f59e0b" : "#22c55e");
+    // Always-visible badge
+    const b = badgeEls();
+    if (b?.wrap) {
+      b.wrap.style.display = "";
+      if (b.label) b.label.textContent = o.header || "Usage";
+      if (b.val)   b.val.textContent = o.val || "";
+      if (b.fill) {
+        if (o.pct != null) { b.fill.style.width = Math.min(100, o.pct) + "%"; b.fill.style.background = color; }
+        else { b.fill.style.width = "0%"; }
+      }
+    }
+    // Menu row (when open)
+    const els = quotaEls();
+    if (els?.wrap) {
+      els.wrap.style.display = "";
+      if (els.hdr) els.hdr.textContent = o.header || "Usage";
+      if (els.per) els.per.textContent = o.period || "";
+      if (els.bar) els.bar.style.display = o.showBar === false ? "none" : "";
+      if (els.fill && o.pct != null) { els.fill.style.width = Math.min(100, o.pct) + "%"; els.fill.style.background = color; }
+      if (els.det) {
+        els.det.textContent = o.detail || o.val || "";
+        els.det.style.color = o.pct >= 70 ? color : "";
+      }
+    }
+  }
+
   // ── Context-window estimate — works on EVERY platform, no API needed ───────
   // Reads the current conversation from the DOM and estimates token size
   // against the model's context window. This is the always-available counter.
@@ -2103,28 +2187,20 @@ ${lines}`;
     generic: 128000
   };
   function showContextEstimate() {
-    const els = quotaEls();
-    if (!els?.wrap) return;
     let turns = [];
     try { turns = readConversationHistory(); } catch {}
     const convoText = turns.map((t) => t.text).join("\n");
-    // Include the current draft in the input box, if any
     let draft = "";
     try { draft = adapter.getValue(adapter.findInput()) || ""; } catch {}
     const tokens = estimateTokens(convoText + "\n" + draft);
     const limit = CONTEXT_WINDOW[adapter.id] || 128000;
     const pct = Math.min(100, Math.round((tokens / limit) * 100));
-    const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
-
-    els.wrap.style.display = "";
-    if (els.hdr) els.hdr.textContent = "Conversation size";
-    if (els.per) els.per.textContent = turns.length ? `· ${turns.length} msgs` : "";
-    if (els.bar) els.bar.style.display = "";
-    if (els.fill) { els.fill.style.width = pct + "%"; els.fill.style.background = color; }
-    if (els.det) {
-      els.det.textContent = `~${fmtT(tokens)} / ${fmtT(limit)} context tokens (${pct}%)`;
-      els.det.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
-    }
+    setUsageDisplay({
+      header: "Context used",
+      val: `${pct}%`,
+      detail: `~${fmtT(tokens)} / ${fmtT(limit)} context tokens${turns.length ? ` · ${turns.length} msgs` : ""}`,
+      pct
+    });
   }
 
   window.addEventListener("message", (e) => {
@@ -2147,14 +2223,9 @@ ${lines}`;
       showClaudeUsageBars(d.data);
     }
     if (d.type === "claude_usage_error") {
-      const els = quotaEls();
-      if (els?.wrap && els.det) {
-        els.wrap.style.display = "";
-        if (els.hdr) els.hdr.textContent = "Claude usage";
-        if (els.bar) els.bar.style.display = "none";
-        els.det.textContent = "Couldn't load usage: " + (d.error || "unknown error");
-        els.det.style.color = "#f59e0b";
-      }
+      console.warn("[PromptAssist] Claude usage error:", d.error);
+      // Fall back to the always-available context estimate
+      try { showContextEstimate(); } catch {}
     }
     if (d.type === "gpt_usage") {
       sessionTokens.input = Math.max(sessionTokens.input, d.promptTokens || 0);
@@ -2203,13 +2274,9 @@ ${lines}`;
   }
 
   function showClaudeUsageBars(data) {
-    const els = quotaEls();
-    if (!els?.wrap) return;
-    els.wrap.style.display = "";
-    if (els.hdr) els.hdr.textContent = "Claude usage";
-    if (els.per) els.per.textContent = "";
+    // Log the raw shape once so the parser can be confirmed/tuned
+    console.debug("[PromptAssist] Claude /usage response:", data);
 
-    // Try the documented 5h / 7d shape first
     const d5 = data?.["5h"] || data?.["5_hour"] || data?.five_hour || null;
     const d7 = data?.["7d"] || data?.["7_day"] || data?.seven_day || null;
     const parts = [];
@@ -2227,62 +2294,58 @@ ${lines}`;
     const pct7 = pctOf(d7);
     if (pct5 != null) {
       const r = formatTimeUntil(d5.resets_at || d5.resets || d5.expires_at);
-      parts.push(`5h: ${pct5}% used${r ? ` · resets in ${r}` : ""}`);
+      parts.push(`5h ${pct5}%${r ? ` (resets ${r})` : ""}`);
       primaryPct = pct5;
     }
     if (pct7 != null) {
       const r = formatTimeUntil(d7.resets_at || d7.resets || d7.expires_at);
-      parts.push(`7d: ${pct7}% used${r ? ` · resets in ${r}` : ""}`);
+      parts.push(`7d ${pct7}%${r ? ` (resets ${r})` : ""}`);
       primaryPct = primaryPct == null ? pct7 : Math.max(primaryPct, pct7);
     }
 
     // Fallback: adaptive search for any usage windows
     if (parts.length === 0) {
       const windows = findUsageWindows(data);
-      for (const w of windows.slice(0, 3)) {
+      for (const w of windows.slice(0, 2)) {
         const r = formatTimeUntil(w.resetsAt);
         const detail = w.used != null && w.limit != null ? `${w.used}/${w.limit}` : `${w.pct}%`;
-        parts.push(`${detail} used${r ? ` · resets in ${r}` : ""}`);
+        parts.push(`${detail}${r ? ` (resets ${r})` : ""}`);
         primaryPct = primaryPct == null ? w.pct : Math.max(primaryPct, w.pct);
       }
     }
 
+    // Couldn't parse real usage — fall back to the context estimate (still useful)
     if (parts.length === 0) {
-      // Last resort: show top-level keys so we can adapt next iteration
-      if (els.bar) els.bar.style.display = "none";
-      if (els.det) {
-        const keys = data && typeof data === "object" ? Object.keys(data).slice(0, 6).join(", ") : typeof data;
-        els.det.textContent = `Usage loaded (fields: ${keys})`;
-        els.det.style.color = "#6b7280";
-      }
+      try { showContextEstimate(); } catch {}
       return;
     }
 
     const pct = primaryPct ?? 0;
-    const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
-    if (els.bar) els.bar.style.display = "";
-    if (els.fill) { els.fill.style.width = pct + "%"; els.fill.style.background = color; }
-    if (els.det) {
-      els.det.textContent = parts.join("   ·   ");
-      els.det.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
-    }
+    setUsageDisplay({
+      header: "Claude limits",
+      val: parts.length === 1 ? parts[0] : `${pct}%`,
+      detail: parts.join("  ·  "),
+      pct
+    });
   }
 
   function showClaudeMessageLimit(limit) {
     if (!limit) return;
-    const els = quotaEls();
-    if (!els?.det) return;
-    els.wrap.style.display = "";
-    if (els.hdr) els.hdr.textContent = "Claude usage";
     if (limit.type === "approaching_limit" && limit.remaining != null) {
       const n = limit.remaining;
-      els.det.textContent = `⚠ ${n} message${n === 1 ? "" : "s"} remaining this session`;
-      els.det.style.color = n <= 3 ? "#ef4444" : "#f59e0b";
+      setUsageDisplay({
+        header: "Claude limits",
+        val: `${n} left`,
+        detail: `⚠ ${n} message${n === 1 ? "" : "s"} remaining this session`,
+        pct: null, showBar: false, color: n <= 3 ? "#ef4444" : "#f59e0b"
+      });
     } else if (limit.type === "exceeded_limit" || limit.type === "at_limit") {
-      els.det.textContent = "🚫 Message limit reached";
-      els.det.style.color = "#ef4444";
-      if (els.bar) els.bar.style.display = "";
-      if (els.fill) { els.fill.style.width = "100%"; els.fill.style.background = "#ef4444"; }
+      setUsageDisplay({
+        header: "Claude limits",
+        val: "limit reached",
+        detail: "🚫 Message limit reached",
+        pct: 100, color: "#ef4444"
+      });
     }
   }
 
