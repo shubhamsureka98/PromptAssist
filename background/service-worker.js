@@ -232,6 +232,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     setSettings({ tokensUsed: 0, tokensByPlatform: {}, tokenResetDate: null }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
     return true;
   }
+  if (t === "STORE_PENDING_IMPORT") {
+    const { text, targetId } = msg.payload || {};
+    chrome.storage.session.set({ pendingImport: { text, targetId, expires: Date.now() + 120000 } })
+      .then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  if (t === "GET_PENDING_IMPORT") {
+    chrome.storage.session.get("pendingImport").then((obj) => {
+      const pi = obj.pendingImport;
+      if (!pi || Date.now() > pi.expires) { sendResponse(null); return; }
+      chrome.storage.session.remove("pendingImport").catch(() => {});
+      sendResponse(pi);
+    }).catch(() => sendResponse(null));
+    return true;
+  }
   return false;
 });
 async function handleOptimize(msg) {

@@ -3,7 +3,10 @@
   "name": "PromptAssist",
   "version": "0.7.1",
   "description": "Optimize your prompts before sending to Claude, ChatGPT, Perplexity, Gemini, and other LLM tools.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "sessions"],
+  "web_accessible_resources": [
+    { "resources": ["inject/bridge.js"], "matches": ["https://claude.ai/*", "https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*"] }
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none';"
   },

@@ -632,6 +632,7 @@
     document.getElementById(HOST_ID$1)?.remove();
     const host = document.createElement("div");
     host.id = HOST_ID$1;
+    host.setAttribute("data-pa-pill", "1");
     host.style.cssText = [
       "position: fixed",
       "z-index: 2147483647",
@@ -1345,18 +1346,21 @@
         if (btn) { btn.textContent = "Copied!"; setTimeout(() => { btn.textContent = "Copy to clipboard"; }, 1800); }
       });
       shadow.querySelectorAll('[data-action="export-to"]').forEach((btn) => {
-        btn.addEventListener("click", (e) => {
+        btn.addEventListener("click", async (e) => {
           e.preventDefault();
           e.stopPropagation();
           const targetLabel = btn.dataset.targetLabel;
           const targetUrl = btn.dataset.targetUrl;
+          const targetId = btn.dataset.targetId;
           const md = buildExportMarkdown(o.turns || [], targetLabel);
-          navigator.clipboard.writeText(md).then(() => {
-            btn.textContent = "✓ Copied! Opening…";
-            setTimeout(() => { window.open(targetUrl, "_blank", "noopener"); }, 400);
-          }).catch(() => {
-            window.open(targetUrl, "_blank", "noopener");
-          });
+          btn.textContent = "Saving…";
+          btn.disabled = true;
+          // Store for auto-paste when target tab loads
+          await chrome.runtime.sendMessage({ type: "STORE_PENDING_IMPORT", payload: { text: md, targetId } }).catch(() => {});
+          // Also copy to clipboard as fallback
+          await navigator.clipboard.writeText(md).catch(() => {});
+          btn.textContent = "✓ Opening — will auto-paste";
+          setTimeout(() => { window.open(targetUrl, "_blank", "noopener"); }, 300);
         });
       });
     }
@@ -2044,6 +2048,173 @@ ${lines}`;
     if (sender.id !== chrome.runtime.id) return;
     if (msg && msg.type === "TRIGGER_OPTIMIZE") void onOptimize();
   });
+
+  // ── Bridge injection (MAIN world fetch interceptor) ───────────────────────
+  function injectBridge() {
+    if (document.getElementById("__pa-bridge__")) return;
+    const s = document.createElement("script");
+    s.id = "__pa-bridge__";
+    s.src = chrome.runtime.getURL("inject/bridge.js");
+    (document.head || document.documentElement).appendChild(s);
+  }
+  if (adapter.id === "claude" || adapter.id === "chatgpt" || adapter.id === "gemini") {
+    injectBridge();
+  }
+
+  // ── Session token counter (bridge postMessage → floating button) ──────────
+  const sessionTokens = { input: 0, output: 0, platform: adapter.id };
+  function fmtT(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+    return String(n);
+  }
+  function updateSessionCounter() {
+    // Find quota detail in any open floating button shadow root
+    const pill = document.querySelector("[data-pa-pill]");
+    if (!pill || !pill.shadowRoot) return;
+    const el = pill.shadowRoot.getElementById("pp-quota-detail");
+    const hdr = pill.shadowRoot.getElementById("pp-quota-platform");
+    const wrap = pill.shadowRoot.getElementById("pp-quota-wrap");
+    if (!el) return;
+    const total = sessionTokens.input + sessionTokens.output;
+    if (total === 0) return;
+    if (wrap) wrap.style.display = "";
+    if (hdr && !hdr.textContent.includes("session")) hdr.textContent = hdr.textContent || adapter.id;
+    el.textContent = `Session: ${fmtT(sessionTokens.input)} in · ${fmtT(sessionTokens.output)} out · ${fmtT(total)} total`;
+  }
+
+  window.addEventListener("message", (e) => {
+    if (e.data?.source !== "PromptAssistBridge") return;
+    const d = e.data;
+
+    if (d.type === "claude_message_start") {
+      sessionTokens.input += d.inputTokens || 0;
+      sessionTokens.output += d.outputTokens || 0;
+      updateSessionCounter();
+      // Fetch real Claude usage bars on first response
+      if (d.orgId) fetchClaudeUsage(d.orgId);
+    }
+    if (d.type === "claude_message_delta") {
+      sessionTokens.output += d.outputTokens || 0;
+      updateSessionCounter();
+    }
+    if (d.type === "claude_message_limit") {
+      showClaudeMessageLimit(d.limit);
+    }
+    if (d.type === "gpt_usage") {
+      sessionTokens.input = Math.max(sessionTokens.input, d.promptTokens || 0);
+      sessionTokens.output += d.completionTokens || 0;
+      updateSessionCounter();
+    }
+    if (d.type === "gemini_usage") {
+      sessionTokens.input = Math.max(sessionTokens.input, d.promptTokens || 0);
+      sessionTokens.output += d.candidateTokens || 0;
+      updateSessionCounter();
+    }
+  });
+
+  // ── Claude /usage API (real 5h + 7d limits) ───────────────────────────────
+  let _claudeUsageFetched = false;
+  async function fetchClaudeUsage(orgId) {
+    if (_claudeUsageFetched) return;
+    _claudeUsageFetched = true;
+    try {
+      const res = await fetch(`/api/organizations/${orgId}/usage`, { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      showClaudeUsageBars(data, orgId);
+    } catch {}
+  }
+  function showClaudeUsageBars(data, orgId) {
+    const pill = document.querySelector("[data-pa-pill]");
+    if (!pill?.shadowRoot) return;
+    const wrap = pill.shadowRoot.getElementById("pp-quota-wrap");
+    const hdr  = pill.shadowRoot.getElementById("pp-quota-platform");
+    const per  = pill.shadowRoot.getElementById("pp-quota-period");
+    const bar  = pill.shadowRoot.getElementById("pp-quota-bar-track");
+    const fill = pill.shadowRoot.getElementById("pp-quota-bar-fill");
+    const det  = pill.shadowRoot.getElementById("pp-quota-detail");
+    if (!wrap) return;
+    wrap.style.display = "";
+    if (hdr) hdr.textContent = "Claude usage";
+
+    const d5  = data["5h"]  || data["5_hour"]  || null;
+    const d7  = data["7d"]  || data["7_day"]   || null;
+    const pct5 = d5  ? Math.round((d5.percent_used  || 0) * 100) : null;
+    const pct7 = d7  ? Math.round((d7.percent_used  || 0) * 100) : null;
+
+    // Use the higher of the two as the primary bar
+    const pct = pct5 ?? pct7 ?? 0;
+    const color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "#22c55e";
+    if (bar) bar.style.display = "";
+    if (fill) { fill.style.width = pct + "%"; fill.style.background = color; }
+
+    const parts = [];
+    if (pct5 != null) {
+      const rem5 = formatTimeUntil(d5.resets_at);
+      parts.push(`5h window: ${pct5}% used${rem5 ? ` · resets in ${rem5}` : ""}`);
+    }
+    if (pct7 != null) {
+      const rem7 = formatTimeUntil(d7.resets_at);
+      parts.push(`7d window: ${pct7}% used${rem7 ? ` · resets in ${rem7}` : ""}`);
+    }
+    if (per) per.textContent = "";
+    if (det) {
+      det.textContent = parts.join("  ·  ") || "Usage data loaded";
+      det.style.color = pct >= 90 ? "#ef4444" : pct >= 70 ? "#f59e0b" : "";
+    }
+  }
+  function showClaudeMessageLimit(limit) {
+    if (!limit) return;
+    const pill = document.querySelector("[data-pa-pill]");
+    if (!pill?.shadowRoot) return;
+    const det = pill.shadowRoot.getElementById("pp-quota-detail");
+    const fill = pill.shadowRoot.getElementById("pp-quota-bar-fill");
+    const bar = pill.shadowRoot.getElementById("pp-quota-bar-track");
+    if (!det) return;
+    if (limit.type === "approaching_limit" && limit.messages_remaining != null) {
+      const n = limit.messages_remaining;
+      if (det) det.textContent = `⚠ ${n} message${n === 1 ? "" : "s"} remaining this session`;
+      if (det) det.style.color = n <= 3 ? "#ef4444" : "#f59e0b";
+      if (bar) bar.style.display = "";
+      const pct = Math.max(5, Math.round((n / 10) * 100)); // rough estimate
+      if (fill) { fill.style.width = (100 - pct) + "%"; fill.style.background = n <= 3 ? "#ef4444" : "#f59e0b"; }
+    } else if (limit.type === "at_limit" || limit.type === "hit_limit") {
+      if (det) { det.textContent = "🚫 Message limit reached for this session"; det.style.color = "#ef4444"; }
+      if (bar) bar.style.display = "";
+      if (fill) { fill.style.width = "100%"; fill.style.background = "#ef4444"; }
+    }
+  }
+  function formatTimeUntil(isoStr) {
+    if (!isoStr) return null;
+    const diff = new Date(isoStr) - Date.now();
+    if (diff <= 0) return null;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+
+  // ── Export: auto-paste into target platform ───────────────────────────────
+  async function consumePendingImport() {
+    if (!isContextValid()) return;
+    try {
+      const pi = await chrome.runtime.sendMessage({ type: "GET_PENDING_IMPORT" });
+      if (!pi || pi.targetId !== adapter.id) return;
+      const input = await waitForElement(() => adapter.findInput(), 8e3);
+      if (!input) return;
+      adapter.setValue(input, pi.text);
+      // Show a subtle toast
+      const toast = document.createElement("div");
+      toast.style.cssText = "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4f46e5;color:#fff;padding:10px 18px;border-radius:10px;font:600 13px/1 -apple-system,sans-serif;z-index:2147483647;box-shadow:0 4px 16px rgba(0,0,0,.3)";
+      toast.textContent = "✦ Chat context pasted — review and send";
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    } catch {}
+  }
+  void consumePendingImport();
+
   const observer = new MutationObserver(() => attach());
   observer.observe(document.documentElement, {
     childList: true,
